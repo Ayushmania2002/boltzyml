@@ -172,8 +172,21 @@
   details[open] summary::before { content: "▾ "; }
   details p { color: var(--ink-soft); font-size: 12.5px; margin: 8px 0 0; }
 
-  footer { max-width: 1100px; margin: 0 auto; padding: 8px 28px 32px;
-    color: var(--muted); font-size: 12px; }
+  footer { max-width: 1100px; margin: 0 auto; padding: 24px 28px 40px;
+    color: var(--muted); font-size: 12.5px;
+    border-top: 1px solid var(--border); margin-top: 24px; }
+  footer .foot-grid { display: grid; grid-template-columns: 1fr auto;
+    gap: 16px; align-items: end; }
+  @media (max-width: 720px) { footer .foot-grid { grid-template-columns: 1fr; } }
+  footer .foot-links { display: flex; gap: 16px; flex-wrap: wrap; }
+  footer .foot-links a { color: var(--accent); font-weight: 500; }
+  footer .copyright { color: var(--ink-soft); }
+  footer .tagline { margin: 0 0 6px; }
+  footer .cite { margin: 12px 0 0; padding: 10px 12px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; font-size: 12px; color: var(--ink-soft);
+    line-height: 1.55; }
+  footer .cite strong { color: var(--ink); }
   code.inline { font-family: ui-monospace, Consolas, monospace;
     background: var(--panel-2); padding: 1px 6px; border-radius: 4px;
     color: var(--ink); border: 1px solid var(--border); }
@@ -422,8 +435,30 @@
 </main>
 
 <footer>
-  Runs entirely in your browser — files are not uploaded anywhere.
-  Then run locally: <code class="inline">boltz predict your.yaml --use_msa_server --use_potentials --diffusion_samples 3</code>.
+  <div class="foot-grid">
+    <div>
+      <p class="tagline">Runs entirely in your browser — files are not uploaded anywhere.
+      Then run locally:
+      <code class="inline">boltz predict your.yaml --use_msa_server --use_potentials --diffusion_samples 3</code></p>
+      <p class="copyright">
+        © 2026 <strong>Ayushman Mallick</strong>. Released under the
+        <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>.
+      </p>
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/Ayushmania2002/boltzyml" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://pypi.org/project/boltzyml/" target="_blank" rel="noopener">PyPI</a>
+      <a href="https://github.com/Ayushmania2002/boltzyml/issues" target="_blank" rel="noopener">Report issue</a>
+      <a href="https://github.com/jwohlwend/boltz" target="_blank" rel="noopener">Boltz-2</a>
+    </div>
+  </div>
+  <p class="cite">
+    <strong>If you use BoltzYML in published work, please cite:</strong>
+    Mallick, A. <em>BoltzYML: a preprocessing-file generator for Boltz-2 ternary
+    (Protein 1 + Ligand + Protein 2) binding prediction.</em> 2026.
+    <a href="https://github.com/Ayushmania2002/boltzyml" target="_blank" rel="noopener">github.com/Ayushmania2002/boltzyml</a>.
+    Also cite Boltz-2 itself (Wohlwend et al., 2024).
+  </p>
 </footer>
 
 <script>

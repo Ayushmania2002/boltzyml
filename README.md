@@ -9,6 +9,15 @@
 </p>
 
 <p align="center">
+  <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/v/boltzyml.svg?color=2563eb&label=PyPI" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/pyversions/boltzyml.svg?color=2563eb&label=Python" alt="Python versions"></a>
+  <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/dm/boltzyml.svg?color=2563eb&label=downloads" alt="PyPI downloads"></a>
+  <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/boltzyml.svg?color=0e9f6e&label=license" alt="License"></a>
+  <a href="https://github.com/Ayushmania2002/boltzyml/stargazers"><img src="https://img.shields.io/github/stars/Ayushmania2002/boltzyml.svg?color=f59e0b&label=stars" alt="GitHub stars"></a>
+  <a href="https://ayushmania2002.github.io/boltzyml/"><img src="https://img.shields.io/badge/web%20app-live-0e9f6e.svg" alt="Web app"></a>
+</p>
+
+<p align="center">
   <a href="https://ayushmania2002.github.io/boltzyml/"><b>Live web app →</b></a>
   &nbsp;·&nbsp;
   <a href="#cli">CLI</a>
