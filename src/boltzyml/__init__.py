@@ -29,7 +29,7 @@ from .contacts import pocket_contacts, remap_contacts, Contact
 from .utils import assign_chains, ChainAssignment, is_generic_ligand_code
 from .yaml_writer import YamlJob, render
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 __all__ = [
     "__version__",

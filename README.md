@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="banner.png" alt="BoltzYML pipeline overview" width="780">
+  <img src="https://raw.githubusercontent.com/Ayushmania2002/boltzyml/main/banner.png" alt="BoltzYML pipeline overview" width="780">
 </p>
 
 <h1 align="center">BoltzYML</h1>
