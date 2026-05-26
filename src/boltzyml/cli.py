@@ -1,10 +1,10 @@
 """BoltzYML CLI — generate a Boltz-2 v1 YAML from two CIF files.
 
 Usage:
-    python boltzyml.py --ligand PYL2_ABA.cif --complex PYL2_PP2C30.cif \\
-                       --output PYL2_ABA_PP2C30.yaml
+    boltzyml --ligand PYL2_ABA.cif --complex PYL2_PP2C30.cif \\
+             --output PYL2_ABA_PP2C30.yaml
 
-Run `python boltzyml.py --help` for all flags.
+Run `boltzyml --help` for all flags.
 """
 
 from __future__ import annotations
@@ -13,10 +13,23 @@ import argparse
 import sys
 from pathlib import Path
 
-from contacts import pocket_contacts, remap_contacts
-from parser import parse_cif, detect_ligand
-from utils import assign_chains, is_generic_ligand_code
-from yaml_writer import YamlJob, render
+from . import __version__
+from .contacts import pocket_contacts, remap_contacts
+from .parser import parse_cif, detect_ligand
+from .utils import assign_chains, is_generic_ligand_code
+from .yaml_writer import YamlJob, render
+
+
+EPILOG = """\
+BoltzYML - preprocessing-file generator for Boltz-2 ternary binding prediction.
+
+Author:      Ayushman Mallick <ayushmania2002@gmail.com>
+Repository:  https://github.com/Ayushmania2002/boltzyml
+Web app:     https://ayushmania2002.github.io/boltzyml/
+License:     MIT (see LICENSE in the repo)
+
+Copyright (c) 2026 Ayushman Mallick.
+"""
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -24,7 +37,11 @@ def build_argparser() -> argparse.ArgumentParser:
         prog="boltzyml",
         description="Generate a Boltz-2 v1 YAML from two CIF files "
                     "(Protein A + Ligand, Protein A + Protein B).",
+        epilog=EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    p.add_argument("--version", action="version",
+                   version=f"boltzyml {__version__}")
     p.add_argument("--ligand", required=True, type=Path,
                    help="CIF with Protein A and the ligand.")
     p.add_argument("--complex", dest="complex_path", required=True, type=Path,
@@ -134,5 +151,10 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _entry() -> None:
+    """Console-script entry point — wraps main() with sys.exit()."""
+    sys.exit(main())
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    _entry()

@@ -1,5 +1,6 @@
-"""Smoke tests for parser.py — synthetic CIFs covering 1-line and 2-line
-atom record layouts. Run: python test_parser.py
+"""Smoke tests for boltzyml.parser — synthetic CIFs covering 1-line and
+2-line atom record layouts. Run: python -m pytest tests/test_parser.py
+or simply: python tests/test_parser.py
 """
 
 from __future__ import annotations
@@ -7,7 +8,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from parser import (
+from boltzyml.parser import (
     parse_cif, detect_ligand, chain_sequence, STANDARD_AA,
 )
 

@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "boltzyml"
+version = "0.1.1"
+description = "Preprocessing file generator for Boltz-2 ternary (Protein 1 + Ligand + Protein 2) binding prediction."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Ayushman Mallick", email = "ayushmania2002@gmail.com" },
+]
+keywords = [
+    "boltz",
+    "boltz-2",
+    "structural-biology",
+    "protein-ligand",
+    "binding-prediction",
+    "bioinformatics",
+    "cif",
+    "yaml",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "build",
+    "twine",
+]
+
+[project.scripts]
+boltzyml = "boltzyml.cli:_entry"
+
+[project.urls]
+Homepage = "https://ayushmania2002.github.io/boltzyml/"
+Repository = "https://github.com/Ayushmania2002/boltzyml"
+Issues = "https://github.com/Ayushmania2002/boltzyml/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/boltzyml"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/boltzyml",
+    "tests",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

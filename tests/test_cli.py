@@ -1,13 +1,11 @@
-"""End-to-end smoke test: build two synthetic CIFs, run the CLI, check YAML.
-Run: python test_cli.py
-"""
+"""End-to-end smoke test: build two synthetic CIFs, run the CLI, check YAML."""
 
 from __future__ import annotations
 
 import tempfile
 from pathlib import Path
 
-import boltzyml
+from boltzyml import cli
 
 
 HEADER = """\
@@ -76,7 +74,7 @@ def test_end_to_end():
     cx = write_temp("_cx.cif", COMPLEX_BODY)
     out = Path(tempfile.mkdtemp()) / "job.yaml"
 
-    rc = boltzyml.main([
+    rc = cli.main([
         "--ligand", str(lig),
         "--complex", str(cx),
         "--output", str(out),
@@ -108,7 +106,7 @@ def test_no_affinity_no_pocket():
     lig = write_temp("_lig.cif", LIG_BODY)
     cx = write_temp("_cx.cif", COMPLEX_BODY)
     out = Path(tempfile.mkdtemp()) / "job2.yaml"
-    rc = boltzyml.main([
+    rc = cli.main([
         "--ligand", str(lig),
         "--complex", str(cx),
         "--output", str(out),
@@ -125,7 +123,7 @@ def test_ccd_override():
     lig = write_temp("_lig.cif", LIG_BODY)
     cx = write_temp("_cx.cif", COMPLEX_BODY)
     out = Path(tempfile.mkdtemp()) / "job3.yaml"
-    rc = boltzyml.main([
+    rc = cli.main([
         "--ligand", str(lig), "--complex", str(cx),
         "--output", str(out), "--ccd", "ATP",
     ])

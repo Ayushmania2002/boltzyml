@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import sqrt
 
-from parser import AtomRecord, ParsedCif, STANDARD_AA
+from .parser import AtomRecord, ParsedCif, STANDARD_AA
 
 
 @dataclass(frozen=True)

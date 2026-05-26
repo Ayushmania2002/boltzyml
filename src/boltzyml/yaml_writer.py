@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from contacts import Contact
+from .contacts import Contact
 
 
 @dataclass

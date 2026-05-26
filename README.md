@@ -63,17 +63,31 @@ Everything happens in your browser — no uploads, no server, no telemetry. Work
 
 ### 2. <a id="cli"></a>Command-line interface
 
-```bash
-git clone https://github.com/Ayushmania2002/boltzyml.git
-cd boltzyml
+Install from PyPI:
 
-python boltzyml.py \
+```bash
+pip install boltzyml
+```
+
+Then run:
+
+```bash
+boltzyml \
     --ligand   PYL2_ABA.cif \
     --complex  PYL2_PP2C30.cif \
     --output   PYL2_ABA_PP2C30.yaml
 ```
 
-Pure Python 3.10+, **zero dependencies** (no `gemmi`, no `numpy`, no `pyyaml` required).
+Pure Python 3.10+, **zero runtime dependencies** (no `gemmi`, no `numpy`, no `pyyaml` required).
+
+You can also clone the repo and run it as a module without installing:
+
+```bash
+git clone https://github.com/Ayushmania2002/boltzyml.git
+cd boltzyml
+pip install -e .
+boltzyml --ligand A.cif --complex B.cif -o out.yaml
+```
 
 #### CLI options
 
@@ -176,19 +190,25 @@ Sanity checks:
 
 ```
 boltzyml/
-├── index.html          # Web app (deploy to GitHub Pages as-is)
-├── logo.png            # Wordmark — used as favicon and header logo
-├── banner.png          # Pipeline schematic — used here in the README
+├── index.html              # Web app (deploy to GitHub Pages as-is)
+├── logo.png                # Wordmark — favicon + header logo
+├── banner.png              # Pipeline schematic — used in this README
 │
-├── boltzyml.py         # CLI entry point
-├── parser.py           # CIF parser (1-line and 2-line layouts)
-├── contacts.py         # CA-to-ligand pocket contact computation
-├── utils.py            # Chain assignment via k-mer similarity
-├── yaml_writer.py      # Boltz-2 v1 YAML emitter
+├── pyproject.toml          # PyPI packaging metadata (hatchling)
+├── LICENSE                 # MIT
 │
-├── test_parser.py      # Synthetic CIFs for both layouts
-├── test_contacts.py    # Cutoff filtering, missing ligand, chain remap
-└── test_cli.py         # End-to-end CLI smoke test
+├── src/boltzyml/
+│   ├── __init__.py         # Public API re-exports
+│   ├── cli.py              # CLI entry point (boltzyml command)
+│   ├── parser.py           # CIF parser (1-line and 2-line layouts)
+│   ├── contacts.py         # CA-to-ligand pocket contact computation
+│   ├── utils.py            # Chain assignment via k-mer similarity
+│   └── yaml_writer.py      # Boltz-2 v1 YAML emitter
+│
+└── tests/
+    ├── test_parser.py      # Synthetic CIFs for both layouts
+    ├── test_contacts.py    # Cutoff filtering, missing ligand, chain remap
+    └── test_cli.py         # End-to-end CLI smoke test
 ```
 
 ---
@@ -196,12 +216,19 @@ boltzyml/
 ## Tests
 
 ```bash
-python test_parser.py
-python test_contacts.py
-python test_cli.py
+pip install -e ".[dev]"
+pytest
 ```
 
-Each script exits non-zero on failure and prints `all tests passed` otherwise. No `pytest` required.
+Or run each file directly without pytest:
+
+```bash
+python tests/test_parser.py
+python tests/test_contacts.py
+python tests/test_cli.py
+```
+
+Each script exits non-zero on failure and prints `all tests passed` otherwise.
 
 ---
 
@@ -224,14 +251,31 @@ Each script exits non-zero on failure and prints `all tests passed` otherwise. N
 
 ## Citation
 
-If BoltzYML is useful in published work, please cite Boltz-2 itself:
+If you use BoltzYML in published or shared work, please cite **both** of the following.
+
+**1. BoltzYML** (this tool):
+
+> Mallick, A. *BoltzYML: a preprocessing-file generator for Boltz-2 ternary (Protein 1 + Ligand + Protein 2) binding prediction.* 2026. <https://github.com/Ayushmania2002/boltzyml>
+
+BibTeX:
+
+```bibtex
+@software{boltzyml_2026,
+  author  = {Mallick, Ayushman},
+  title   = {{BoltzYML}: a preprocessing-file generator for Boltz-2 ternary
+             (Protein 1 + Ligand + Protein 2) binding prediction},
+  year    = {2026},
+  url     = {https://github.com/Ayushmania2002/boltzyml},
+  version = {0.1.1}
+}
+```
+
+**2. Boltz-2** (the upstream model BoltzYML produces input for):
 
 > Wohlwend, J. et al. *Boltz-2: Towards Accurate and Efficient Binding Affinity Prediction.* 2024. <https://github.com/jwohlwend/boltz>
-
-A standalone citation for BoltzYML is not necessary — a link back to this repo is appreciated.
 
 ---
 
 ## License
 
-MIT.
+[MIT](LICENSE). Copyright © 2026 Ayushman Mallick.

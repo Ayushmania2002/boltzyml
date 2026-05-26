@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from parser import ParsedCif, STANDARD_AA, chain_sequence
+from .parser import ParsedCif, STANDARD_AA, chain_sequence
 
 
 @dataclass

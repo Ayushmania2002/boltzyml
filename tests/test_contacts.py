@@ -1,12 +1,12 @@
-"""Smoke tests for contacts.py. Run: python test_contacts.py"""
+"""Smoke tests for boltzyml.contacts."""
 
 from __future__ import annotations
 
 import tempfile
 from pathlib import Path
 
-from parser import parse_cif
-from contacts import pocket_contacts, remap_contacts, Contact
+from boltzyml.parser import parse_cif
+from boltzyml.contacts import pocket_contacts, remap_contacts, Contact
 
 
 # Three protein residues at known x positions, one ligand atom at x=20.
