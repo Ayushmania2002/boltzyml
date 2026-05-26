@@ -242,14 +242,6 @@ Each script exits non-zero on failure and prints `all tests passed` otherwise.
 
 ---
 
-## Deploying the web app to GitHub Pages
-
-1. Push the repo to GitHub.
-2. Repo → **Settings** → **Pages** → **Source: Deploy from a branch** → **Branch: `main` / `/ (root)`** → **Save**.
-3. The site goes live at `https://<your-username>.github.io/<repo>/` in a minute or so. `index.html`, `logo.png`, and `banner.png` are everything the page needs — no build step.
-
----
-
 ## Gotchas
 
 - **`LIG` / `UNL` / `UNK` ligands.** Docking tools often name the ligand generically. The real PDB CCD code (e.g. `A8S` for abscisic acid, `ATP`, `HEM`) belongs in the `ccd:` field — use the CCD override in the web app or `--ccd` on the CLI. Verify codes at <https://www.rcsb.org/ligand/>.
