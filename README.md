@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/v/boltzyml.svg?color=2563eb&label=PyPI" alt="PyPI version"></a>
-  <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/pyversions/boltzyml.svg?color=2563eb&label=Python" alt="Python versions"></a>
-  <a href="https://pepy.tech/project/boltzyml"><img src="https://img.shields.io/pepy/dt/boltzyml.svg?color=2563eb&label=downloads" alt="PyPI downloads"></a>
-  <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/boltzyml.svg?color=0e9f6e&label=license" alt="License"></a>
-  <a href="https://github.com/Ayushmania2002/boltzyml/stargazers"><img src="https://img.shields.io/github/stars/Ayushmania2002/boltzyml.svg?color=f59e0b&label=stars" alt="GitHub stars"></a>
-  <a href="https://ayushmania2002.github.io/boltzyml/"><img src="https://img.shields.io/badge/web%20app-live-0e9f6e.svg" alt="Web app"></a>
-  <a href="https://doi.org/10.5281/zenodo.20397272"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20397272-3C7EBC.svg" alt="Zenodo DOI"></a>
+  <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/v/boltzyml.svg?color=2563eb&label=PyPI&v=1" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/pyversions/boltzyml.svg?color=2563eb&label=Python&v=1" alt="Python versions"></a>
+  <a href="https://pepy.tech/project/boltzyml"><img src="https://img.shields.io/pepy/dt/boltzyml.svg?color=2563eb&label=downloads&v=1" alt="PyPI downloads"></a>
+  <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/boltzyml.svg?color=0e9f6e&label=license&v=1" alt="License"></a>
+  <a href="https://github.com/Ayushmania2002/boltzyml/stargazers"><img src="https://img.shields.io/github/stars/Ayushmania2002/boltzyml.svg?color=f59e0b&label=stars&v=1" alt="GitHub stars"></a>
+  <a href="https://ayushmania2002.github.io/boltzyml/"><img src="https://img.shields.io/badge/web%20app-live-0e9f6e.svg?v=1" alt="Web app"></a>
+  <a href="https://doi.org/10.5281/zenodo.20397272"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20397272-3C7EBC.svg?v=1" alt="Zenodo DOI"></a>
 </p>
 
 <p align="center">
