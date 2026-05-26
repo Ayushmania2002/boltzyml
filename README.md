@@ -11,10 +11,11 @@
 <p align="center">
   <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/v/boltzyml.svg?color=2563eb&label=PyPI" alt="PyPI version"></a>
   <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/pyversions/boltzyml.svg?color=2563eb&label=Python" alt="Python versions"></a>
-  <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/dm/boltzyml.svg?color=2563eb&label=downloads" alt="PyPI downloads"></a>
+  <a href="https://pepy.tech/project/boltzyml"><img src="https://static.pepy.tech/badge/boltzyml/month" alt="PyPI downloads"></a>
   <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/boltzyml.svg?color=0e9f6e&label=license" alt="License"></a>
   <a href="https://github.com/Ayushmania2002/boltzyml/stargazers"><img src="https://img.shields.io/github/stars/Ayushmania2002/boltzyml.svg?color=f59e0b&label=stars" alt="GitHub stars"></a>
   <a href="https://ayushmania2002.github.io/boltzyml/"><img src="https://img.shields.io/badge/web%20app-live-0e9f6e.svg" alt="Web app"></a>
+  <a href="https://doi.org/10.5281/zenodo.20397272"><img src="https://zenodo.org/badge/1250166628.svg" alt="Zenodo DOI"></a>
 </p>
 
 <p align="center">
@@ -264,18 +265,20 @@ If you use BoltzYML in published or shared work, please cite **both** of the fol
 
 **1. BoltzYML** (this tool):
 
-> Mallick, A. *BoltzYML: a preprocessing-file generator for Boltz-2 ternary (Protein 1 + Ligand + Protein 2) binding prediction.* 2026. <https://github.com/Ayushmania2002/boltzyml>
+> Mallick, A. *BoltzYML: a preprocessing-file generator for Boltz-2 ternary (Protein 1 + Ligand + Protein 2) binding prediction.* Zenodo (2026). <https://doi.org/10.5281/zenodo.20397272>
 
 BibTeX:
 
 ```bibtex
 @software{boltzyml_2026,
-  author  = {Mallick, Ayushman},
-  title   = {{BoltzYML}: a preprocessing-file generator for Boltz-2 ternary
-             (Protein 1 + Ligand + Protein 2) binding prediction},
-  year    = {2026},
-  url     = {https://github.com/Ayushmania2002/boltzyml},
-  version = {0.1.1}
+  author    = {Mallick, Ayushman},
+  title     = {{BoltzYML}: a preprocessing-file generator for Boltz-2 ternary
+               (Protein 1 + Ligand + Protein 2) binding prediction},
+  year      = {2026},
+  publisher = {Zenodo},
+  version   = {0.1.1},
+  doi       = {10.5281/zenodo.20397272},
+  url       = {https://doi.org/10.5281/zenodo.20397272}
 }
 ```
 
