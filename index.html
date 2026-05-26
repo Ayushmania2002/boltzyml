@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BoltzYML — Boltz-2 YAML generator</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
+<meta name="description" content="Preprocessing file generator for Protein 1 + Ligand + Protein 2 binding prediction with Boltz-2. Browser-only, no uploads.">
+<meta property="og:title" content="BoltzYML — Boltz-2 YAML generator">
+<meta property="og:description" content="Drop in a Protein 1 + Ligand docked structure and a Protein 1 + Protein 2 reference; get a ready-to-run Boltz-2 YAML.">
+<meta property="og:image" content="banner.png">
+<meta property="og:type" content="website">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #f3f4f7;
+    --ink: #11151c;
+    --ink-soft: #3a4452;
+    --muted: #6b7585;
+    --accent: #2563eb;
+    --accent-soft: #e6efff;
+    --accent-2: #0e9f6e;
+    --accent-2-soft: #e2f5ec;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --err: #b91c1c;
+    --err-soft: #fee2e2;
+    --border: #e3e6ec;
+    --border-strong: #cdd2db;
+    --shadow: 0 1px 2px rgba(15,21,33,.04), 0 4px 16px rgba(15,21,33,.04);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header { max-width: 1100px; margin: 0 auto; padding: 28px 28px 8px; }
+  header .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+  header .brand-logo { height: 56px; width: auto; display: block; }
+  header h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: -0.015em; font-weight: 700; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  header .lede { font-size: 14.5px; color: var(--ink-soft); line-height: 1.6;
+    max-width: 880px; }
+  header .lede strong { color: var(--ink); font-weight: 600; }
+  header .lede em { font-style: normal; color: var(--ink);
+    border-bottom: 1px dotted var(--border-strong); padding-bottom: 1px; }
+
+  .diagram-wrap { max-width: 1100px; margin: 12px auto 0; padding: 0 28px; }
+  .diagram { width: 100%; height: auto; display: block;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 8px; box-shadow: var(--shadow); }
+  .diagram .card-svg {
+    fill: var(--panel); stroke: var(--border-strong); stroke-width: 1.2; }
+  .diagram .card-pipe {
+    fill: #f3f7ff; stroke: #b9ccf4; stroke-width: 1.2; }
+  .diagram .card-out {
+    fill: #ecf8f2; stroke: #b8e5d1; stroke-width: 1.2; }
+  .diagram .t-title { font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
+    fill: var(--ink); }
+  .diagram .t-title-sm { font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+    fill: var(--ink); }
+  .diagram .t-sub { font: 500 11.5px/1 ui-sans-serif, system-ui, sans-serif;
+    fill: var(--muted); }
+  .diagram .t-mono { font: 500 11px/1 ui-monospace, Consolas, monospace;
+    fill: var(--accent); }
+  .diagram .step-num { font: 700 12px/1 ui-sans-serif, system-ui, sans-serif;
+    fill: #ffffff; }
+  .diagram .lbl-tag { font: 600 10.5px/1 ui-sans-serif, system-ui, sans-serif;
+    fill: var(--accent); letter-spacing: 0.06em; }
+  .diagram .caption { font: 500 12px/1 ui-sans-serif, system-ui, sans-serif;
+    fill: var(--muted); }
+  .diagram .caption-mono { font: 500 12px/1 ui-monospace, Consolas, monospace;
+    fill: var(--ink-soft); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 12px 28px 64px; display: grid;
+    grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 880px) { main { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; box-shadow: var(--shadow); }
+  .card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+  .full { grid-column: 1 / -1; }
+
+  label.field { display: block; margin-bottom: 12px; }
+  label.field > span { display: block; color: var(--ink-soft); margin-bottom: 5px;
+    font-size: 12px; font-weight: 500; }
+  input[type="text"], input[type="number"], select, textarea {
+    width: 100%; background: var(--panel); border: 1px solid var(--border-strong);
+    color: var(--ink); padding: 9px 11px; border-radius: 8px; font: inherit;
+    transition: border-color .12s, box-shadow .12s; }
+  input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+  textarea { font: 12.5px/1.5 ui-monospace, "JetBrains Mono", Consolas, monospace;
+    min-height: 360px; resize: vertical; white-space: pre; background: var(--panel-2); }
+
+  /* Dropzone — label sits flush, hidden input is removed from layout entirely. */
+  .drop { position: relative; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 6px;
+    border: 1.5px dashed var(--border-strong); border-radius: 10px;
+    padding: 22px 18px; min-height: 112px;
+    text-align: center; cursor: pointer;
+    background: var(--panel-2);
+    transition: border-color .12s, background .12s, transform .06s; }
+  .drop:hover { border-color: var(--accent); background: #f7faff; }
+  .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop.loaded { border-style: solid; border-color: var(--accent-2);
+    background: var(--accent-2-soft); }
+  .drop input[type="file"] {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+    white-space: nowrap; border: 0;
+  }
+  .drop .icon { color: var(--muted); font-size: 22px; line-height: 1; }
+  .drop.loaded .icon { color: var(--accent-2); }
+  .drop .name { color: var(--ink); font-weight: 600; word-break: break-all;
+    font-size: 14px; }
+  .drop .hint { color: var(--muted); font-size: 12px; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .row.three { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 720px) { .row, .row.three { grid-template-columns: 1fr; } }
+
+  .checkbox { display: flex; align-items: center; gap: 8px; color: var(--ink-soft);
+    font-size: 13px; cursor: pointer; user-select: none;
+    padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel); transition: border-color .12s, background .12s; }
+  .checkbox:hover { border-color: var(--border-strong); }
+  .checkbox input { accent-color: var(--accent); margin: 0; }
+  .checkbox input:checked + span { color: var(--ink); font-weight: 500; }
+
+  button.primary {
+    background: var(--accent); color: white; border: 0;
+    padding: 10px 18px; border-radius: 8px; font-weight: 600;
+    cursor: pointer; font-size: 14px;
+    transition: background .12s, box-shadow .12s; }
+  button.primary:hover:not(:disabled) { background: #1d4ed8; }
+  button.primary:disabled { background: var(--border-strong); cursor: not-allowed; }
+  button.ghost {
+    background: var(--panel); color: var(--ink); border: 1px solid var(--border-strong);
+    padding: 9px 14px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+  button.ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button.ghost:disabled { color: var(--muted); cursor: not-allowed; }
+
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  .status { padding: 11px 13px; border-radius: 8px; font-size: 13px; line-height: 1.5;
+    border: 1px solid transparent; }
+  .status.info  { background: var(--accent-soft);   color: var(--accent);   border-color: #cfdcfd; }
+  .status.warn  { background: var(--warn-soft);     color: var(--warn);     border-color: #fde9b3; }
+  .status.err   { background: var(--err-soft);      color: var(--err);      border-color: #fbc4c4; }
+  .status.ok    { background: var(--accent-2-soft); color: var(--accent-2); border-color: #b8e5d1; }
+
+  .summary { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px;
+    font-size: 13px; }
+  .summary dt { color: var(--muted); }
+  .summary dd { margin: 0; font-family: ui-monospace, Consolas, monospace;
+    color: var(--ink); }
+  details { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px;
+    list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before { content: "▸ "; }
+  details[open] summary::before { content: "▾ "; }
+  details p { color: var(--ink-soft); font-size: 12.5px; margin: 8px 0 0; }
+
+  footer { max-width: 1100px; margin: 0 auto; padding: 8px 28px 32px;
+    color: var(--muted); font-size: 12px; }
+  code.inline { font-family: ui-monospace, Consolas, monospace;
+    background: var(--panel-2); padding: 1px 6px; border-radius: 4px;
+    color: var(--ink); border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <img src="logo.png" alt="BoltzYML logo" class="brand-logo">
+  </div>
+  <p class="lede">
+    Preprocessing file generator for <strong>Protein 1 + Ligand + Protein 2</strong>
+    binding prediction with <a href="https://github.com/jwohlwend/boltz" target="_blank" rel="noopener">Boltz-2</a>.
+    Drop in a <em>Protein 1 + Ligand</em> docked structure and a <em>Protein 1 + Protein 2</em>
+    reference structure — BoltzYML extracts sequences, identifies the ligand and pocket
+    residues, and emits a ready-to-run YAML for the Boltz-2 CLI.
+  </p>
+</header>
+
+<section class="diagram-wrap" aria-label="BoltzYML pipeline diagram">
+  <svg viewBox="0 0 1100 320" preserveAspectRatio="xMidYMid meet" role="img"
+       aria-labelledby="diagTitle diagDesc" class="diagram">
+    <title id="diagTitle">BoltzYML pipeline</title>
+    <desc id="diagDesc">
+      Two CIF inputs flow through parsing, ligand and chain detection, pocket contact
+      computation, and YAML emission, producing a Boltz-2 input file.
+    </desc>
+
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#7a8597"/>
+      </marker>
+      <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/>
+      </marker>
+
+      <!-- File icon: 28x32 box, drawn at 0,0 -->
+      <g id="iconFile">
+        <path d="M2 2 L18 2 L26 10 L26 30 L2 30 Z"
+              fill="#ffffff" stroke="#2563eb" stroke-width="1.6"
+              stroke-linejoin="round"/>
+        <path d="M18 2 L18 10 L26 10" fill="none"
+              stroke="#2563eb" stroke-width="1.6" stroke-linejoin="round"/>
+        <line x1="7"  y1="16" x2="21" y2="16" stroke="#2563eb" stroke-width="1.4"/>
+        <line x1="7"  y1="20" x2="21" y2="20" stroke="#2563eb" stroke-width="1.4"/>
+        <line x1="7"  y1="24" x2="17" y2="24" stroke="#2563eb" stroke-width="1.4"/>
+      </g>
+
+      <!-- Output doc icon (greenish) -->
+      <g id="iconOut">
+        <path d="M2 2 L18 2 L26 10 L26 30 L2 30 Z"
+              fill="#ffffff" stroke="#0e9f6e" stroke-width="1.6"
+              stroke-linejoin="round"/>
+        <path d="M18 2 L18 10 L26 10" fill="none"
+              stroke="#0e9f6e" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M8 18 L12 22 L20 14" fill="none"
+              stroke="#0e9f6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </defs>
+
+    <!-- Row label: INPUTS -->
+    <g class="row-label">
+      <rect x="14" y="46" width="74" height="22" rx="11" fill="#eef2ff"/>
+      <text x="51" y="61" text-anchor="middle" class="lbl-tag">INPUTS</text>
+    </g>
+
+    <!-- Input 1: Protein 1 + Ligand -->
+    <g transform="translate(14, 86)">
+      <rect class="card-svg" width="200" height="78" rx="10"/>
+      <use href="#iconFile" x="14" y="22"/>
+      <text x="54" y="38" class="t-title">Protein 1 + Ligand</text>
+      <text x="54" y="56" class="t-sub">docked reference</text>
+      <text x="54" y="72" class="t-mono">.cif</text>
+    </g>
+
+    <!-- Input 2: Protein 1 + Protein 2 -->
+    <g transform="translate(14, 196)">
+      <rect class="card-svg" width="200" height="78" rx="10"/>
+      <use href="#iconFile" x="14" y="22"/>
+      <text x="54" y="38" class="t-title">Protein 1 + Protein 2</text>
+      <text x="54" y="56" class="t-sub">reference structure</text>
+      <text x="54" y="72" class="t-mono">.cif</text>
+    </g>
+
+    <!-- Arrows from each input merging into the pipeline entry -->
+    <path d="M214 125 C 240 125, 240 160, 268 160"
+          fill="none" stroke="#7a8597" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <path d="M214 235 C 240 235, 240 165, 268 165"
+          fill="none" stroke="#7a8597" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+    <!-- Pipeline row label -->
+    <g class="row-label">
+      <rect x="278" y="46" width="118" height="22" rx="11" fill="#eef2ff"/>
+      <text x="337" y="61" text-anchor="middle" class="lbl-tag">PIPELINE (in browser)</text>
+    </g>
+
+    <!-- Pipeline step 1: Parse CIF -->
+    <g transform="translate(275, 122)">
+      <rect class="card-pipe" width="150" height="78" rx="10"/>
+      <circle cx="20" cy="20" r="11" fill="#2563eb"/>
+      <text x="20" y="24" text-anchor="middle" class="step-num">1</text>
+      <text x="75" y="46" text-anchor="middle" class="t-title">Parse CIFs</text>
+      <text x="75" y="64" text-anchor="middle" class="t-sub">atoms · chains · residues</text>
+    </g>
+
+    <line x1="425" y1="161" x2="445" y2="161" stroke="#2563eb"
+          stroke-width="1.8" marker-end="url(#arrowBlue)"/>
+
+    <!-- Pipeline step 2: Detect ligand & sequences -->
+    <g transform="translate(447, 122)">
+      <rect class="card-pipe" width="166" height="78" rx="10"/>
+      <circle cx="20" cy="20" r="11" fill="#2563eb"/>
+      <text x="20" y="24" text-anchor="middle" class="step-num">2</text>
+      <text x="83" y="46" text-anchor="middle" class="t-title">Detect ligand</text>
+      <text x="83" y="64" text-anchor="middle" class="t-sub">+ extract sequences</text>
+    </g>
+
+    <line x1="613" y1="161" x2="633" y2="161" stroke="#2563eb"
+          stroke-width="1.8" marker-end="url(#arrowBlue)"/>
+
+    <!-- Pipeline step 3: Compute pocket contacts -->
+    <g transform="translate(635, 122)">
+      <rect class="card-pipe" width="166" height="78" rx="10"/>
+      <circle cx="20" cy="20" r="11" fill="#2563eb"/>
+      <text x="20" y="24" text-anchor="middle" class="step-num">3</text>
+      <text x="83" y="46" text-anchor="middle" class="t-title">Pocket contacts</text>
+      <text x="83" y="64" text-anchor="middle" class="t-sub">CA atoms ≤ cutoff Å</text>
+    </g>
+
+    <line x1="801" y1="161" x2="821" y2="161" stroke="#2563eb"
+          stroke-width="1.8" marker-end="url(#arrowBlue)"/>
+
+    <!-- Pipeline step 4: Emit YAML -->
+    <g transform="translate(823, 122)">
+      <rect class="card-pipe" width="150" height="78" rx="10"/>
+      <circle cx="20" cy="20" r="11" fill="#2563eb"/>
+      <text x="20" y="24" text-anchor="middle" class="step-num">4</text>
+      <text x="75" y="46" text-anchor="middle" class="t-title">Emit YAML v1</text>
+      <text x="75" y="64" text-anchor="middle" class="t-sub">chains A · B · C</text>
+    </g>
+
+    <line x1="973" y1="161" x2="996" y2="161" stroke="#7a8597"
+          stroke-width="1.8" marker-end="url(#arrow)"/>
+
+    <!-- Output row label -->
+    <g class="row-label">
+      <rect x="998" y="46" width="88" height="22" rx="11" fill="#e2f5ec"/>
+      <text x="1042" y="61" text-anchor="middle" class="lbl-tag" fill="#0e9f6e">OUTPUT</text>
+    </g>
+
+    <!-- Output: ready-to-run YAML -->
+    <g transform="translate(998, 122)">
+      <rect class="card-out" width="88" height="78" rx="10"/>
+      <use href="#iconOut" x="30" y="14"/>
+      <text x="44" y="64" text-anchor="middle" class="t-title-sm">job.yaml</text>
+    </g>
+
+    <!-- Caption: feeds into boltz predict CLI -->
+    <text x="550" y="298" text-anchor="middle" class="caption">
+      Then run locally:
+    </text>
+    <text x="550" y="313" text-anchor="middle" class="caption-mono">
+      boltz predict job.yaml --use_msa_server --use_potentials --diffusion_samples 3
+    </text>
+  </svg>
+</section>
+
+<main>
+  <section class="card">
+    <h2>1 · Ligand-bound CIF (Protein A + Ligand)</h2>
+    <label class="drop" id="dropLigand">
+      <input type="file" id="fileLigand" accept=".cif,.mmcif,text/plain">
+      <div class="icon" aria-hidden="true">⬆</div>
+      <div class="name" id="nameLigand">Click or drop a .cif file</div>
+      <div class="hint">e.g. AlphaFill output, docking pose. Used for ligand identity + pocket contacts.</div>
+    </label>
+  </section>
+
+  <section class="card">
+    <h2>2 · Complex CIF (Protein A + Protein B)</h2>
+    <label class="drop" id="dropComplex">
+      <input type="file" id="fileComplex" accept=".cif,.mmcif,text/plain">
+      <div class="icon" aria-hidden="true">⬆</div>
+      <div class="name" id="nameComplex">Click or drop a .cif file</div>
+      <div class="hint">e.g. AlphaFold3 output. Used to extract Protein B sequence.</div>
+    </label>
+  </section>
+
+  <section class="card full">
+    <h2>Options</h2>
+    <div class="row three">
+      <label class="field">
+        <span>Job name</span>
+        <input type="text" id="jobName" placeholder="auto from filenames">
+      </label>
+      <label class="field">
+        <span>CA cutoff (Å)</span>
+        <input type="number" id="cutoff" value="6.0" step="0.5" min="2" max="15">
+      </label>
+      <label class="field">
+        <span>Ligand CCD override (optional)</span>
+        <input type="text" id="ccdOverride" placeholder="leave blank to use detected code">
+      </label>
+    </div>
+    <p style="color: var(--muted); font-size: 12px; margin: -4px 0 14px;">
+      The detected ligand code from the CIF goes into the YAML's <code class="inline">ccd:</code> field.
+      If your CIF labels the ligand generically (e.g. <code class="inline">LIG</code>,
+      <code class="inline">UNL</code>, <code class="inline">UNK</code>), type the real PDB CCD code here
+      to replace it — e.g. <code class="inline">A8S</code> for abscisic acid,
+      <code class="inline">ATP</code>, <code class="inline">HEM</code>. Whatever you type is used verbatim.
+    </p>
+    <div class="row three">
+      <label class="checkbox"><input type="checkbox" id="optAffinity" checked><span>Predict affinity</span></label>
+      <label class="checkbox"><input type="checkbox" id="optPocket" checked><span>Pocket constraints</span></label>
+      <label class="checkbox"><input type="checkbox" id="optForce" checked><span>Force pocket (potential)</span></label>
+    </div>
+    <div class="actions" style="margin-top: 8px;">
+      <button class="primary" id="generate" disabled>Generate YAML</button>
+      <button class="ghost" id="copy" disabled>Copy</button>
+      <button class="ghost" id="download" disabled>Download .yaml</button>
+    </div>
+    <div id="status" class="status info" style="margin-top: 14px; display: none;"></div>
+  </section>
+
+  <section class="card">
+    <h2>Detection summary</h2>
+    <dl class="summary" id="summary">
+      <dt>Status</dt><dd>Waiting for both CIF files…</dd>
+    </dl>
+    <details><summary>How chain assignment works</summary>
+      <p style="color: var(--muted); font-size: 12.5px;">
+        Protein A (Boltz chain <code class="inline">A</code>) is the protein in the ligand CIF.
+        Protein B (Boltz chain <code class="inline">C</code>) is matched in the complex CIF by sequence
+        similarity to Protein A — the remaining chain becomes Protein B. Residue numbers use
+        <code class="inline">auth_seq_id</code> from the ligand CIF.
+      </p>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>Output YAML</h2>
+    <textarea id="yamlOut" spellcheck="false" placeholder="YAML will appear here after generation."></textarea>
+  </section>
+</main>
+
+<footer>
+  Runs entirely in your browser — files are not uploaded anywhere.
+  Then run locally: <code class="inline">boltz predict your.yaml --use_msa_server --use_potentials --diffusion_samples 3</code>.
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const STANDARD_AA = new Set([
+    "ALA","ARG","ASN","ASP","CYS","GLU","GLN","GLY","HIS","ILE",
+    "LEU","LYS","MET","PHE","PRO","SER","THR","TRP","TYR","VAL"
+  ]);
+  const NON_LIGAND_HET = new Set(["HOH","WAT","DOD"]);
+  const AA3_TO_1 = {
+    ALA:"A",ARG:"R",ASN:"N",ASP:"D",CYS:"C",GLU:"E",GLN:"Q",GLY:"G",
+    HIS:"H",ILE:"I",LEU:"L",LYS:"K",MET:"M",PHE:"F",PRO:"P",SER:"S",
+    THR:"T",TRP:"W",TYR:"Y",VAL:"V"
+  };
+
+  // ───────── CIF parser ─────────
+  function parseCif(text) {
+    const lines = text.split(/\r?\n/);
+    const fields = [];
+    const data = [];
+    let state = "before";
+    for (const raw of lines) {
+      const s = raw.trim();
+      if (state === "before") {
+        if (s.startsWith("_atom_site.")) {
+          fields.push(s.slice("_atom_site.".length));
+          state = "fields";
+        }
+      } else if (state === "fields") {
+        if (s.startsWith("_atom_site.")) {
+          fields.push(s.slice("_atom_site.".length));
+        } else if (s === "" || s.startsWith("#")) {
+          continue;
+        } else {
+          state = "data";
+          data.push(s);
+        }
+      } else {
+        if (s === "" || s.startsWith("#") || s.startsWith("loop_")
+            || s.startsWith("data_") || s.startsWith("_")) break;
+        data.push(s);
+      }
+    }
+    if (!fields.length) throw new Error("No _atom_site loop found.");
+    if (!data.length) throw new Error("No ATOM/HETATM records found.");
+
+    const nFields = fields.length;
+    const firstTokens = data[0].split(/\s+/);
+    let linesPerRecord = 1;
+    if (firstTokens.length < nFields) {
+      linesPerRecord = Math.max(1, Math.round(nFields / firstTokens.length));
+      if (nFields % linesPerRecord !== 0) {
+        throw new Error(`Cannot reconcile ${nFields} fields with ${firstTokens.length} tokens/line.`);
+      }
+    }
+
+    const records = [];
+    if (linesPerRecord === 1) {
+      for (const ln of data) records.push(ln.split(/\s+/));
+    } else {
+      const buf = [];
+      for (const ln of data) for (const t of ln.split(/\s+/)) buf.push(t);
+      for (let i = 0; i + nFields <= buf.length; i += nFields) {
+        records.push(buf.slice(i, i + nFields));
+      }
+    }
+
+    const idx = Object.fromEntries(fields.map((f, i) => [f, i]));
+    const required = ["group_PDB","label_atom_id","label_comp_id",
+                      "auth_asym_id","auth_seq_id","Cartn_x","Cartn_y","Cartn_z"];
+    for (const r of required) if (!(r in idx)) throw new Error(`Missing field: ${r}`);
+
+    const atoms = [];
+    for (const t of records) {
+      const grp = t[idx.group_PDB];
+      if (grp !== "ATOM" && grp !== "HETATM") continue;
+      const seqRaw = t[idx.auth_seq_id];
+      const seq = parseInt(seqRaw, 10);
+      if (Number.isNaN(seq)) continue;
+      atoms.push({
+        group: grp,
+        atom: unquote(t[idx.label_atom_id]),
+        comp: t[idx.label_comp_id],
+        chain: t[idx.auth_asym_id],
+        resId: seq,
+        x: parseFloat(t[idx.Cartn_x]),
+        y: parseFloat(t[idx.Cartn_y]),
+        z: parseFloat(t[idx.Cartn_z]),
+      });
+    }
+    return { fields, atoms };
+  }
+
+  function unquote(s) {
+    if (s.length >= 2 && s[0] === s[s.length - 1] && (s[0] === "'" || s[0] === '"')) {
+      return s.slice(1, -1);
+    }
+    return s;
+  }
+
+  // ───────── Helpers ─────────
+  function chainsOf(cif) {
+    const out = new Map();
+    for (const a of cif.atoms) {
+      if (!out.has(a.chain)) out.set(a.chain, []);
+      out.get(a.chain).push(a);
+    }
+    return out;
+  }
+
+  function detectLigand(cif) {
+    for (const a of cif.atoms) {
+      if (a.group !== "HETATM") continue;
+      if (STANDARD_AA.has(a.comp) || NON_LIGAND_HET.has(a.comp)) continue;
+      return { chain: a.chain, comp: a.comp, resId: a.resId };
+    }
+    return null;
+  }
+
+  function chainSequence(cif, chain) {
+    const cas = new Map();
+    for (const a of cif.atoms) {
+      if (a.group !== "ATOM") continue;
+      if (!STANDARD_AA.has(a.comp)) continue;
+      if (a.chain !== chain) continue;
+      if (a.atom !== "CA") continue;
+      cas.set(a.resId, AA3_TO_1[a.comp] || "X");
+    }
+    const ids = [...cas.keys()].sort((a, b) => a - b);
+    return ids.map(i => cas.get(i)).join("");
+  }
+
+  function proteinChains(cif) {
+    const chains = chainsOf(cif);
+    const out = [];
+    for (const [name, atoms] of chains) {
+      const cas = atoms.filter(a => a.group === "ATOM" && a.atom === "CA"
+                                  && STANDARD_AA.has(a.comp));
+      if (cas.length > 0) out.push({ name, length: cas.length });
+    }
+    return out;
+  }
+
+  // Pairwise sequence similarity via shared k-mers — good enough to match
+  // the same protein across two CIFs without depending on alignment libs.
+  function kmerSimilarity(seqA, seqB, k = 5) {
+    if (seqA.length < k || seqB.length < k) return 0;
+    const setA = new Set();
+    for (let i = 0; i <= seqA.length - k; i++) setA.add(seqA.slice(i, i + k));
+    let hits = 0, total = 0;
+    for (let i = 0; i <= seqB.length - k; i++) {
+      total++;
+      if (setA.has(seqB.slice(i, i + k))) hits++;
+    }
+    return total === 0 ? 0 : hits / total;
+  }
+
+  function pocketContacts(cif, ligand, cutoff) {
+    const ligAtoms = cif.atoms.filter(a =>
+      a.group === "HETATM" && a.chain === ligand.chain
+      && a.comp === ligand.comp && a.resId === ligand.resId);
+    if (!ligAtoms.length) throw new Error("No ligand atoms found for pocket calc.");
+    const cut2 = cutoff * cutoff;
+    const out = [];
+    const seen = new Set();
+    for (const a of cif.atoms) {
+      if (a.group !== "ATOM" || a.atom !== "CA") continue;
+      if (!STANDARD_AA.has(a.comp)) continue;
+      const key = a.chain + ":" + a.resId;
+      if (seen.has(key)) continue;
+      let minD2 = Infinity;
+      for (const l of ligAtoms) {
+        const dx = a.x - l.x, dy = a.y - l.y, dz = a.z - l.z;
+        const d2 = dx*dx + dy*dy + dz*dz;
+        if (d2 < minD2) minD2 = d2;
+      }
+      if (minD2 <= cut2) {
+        seen.add(key);
+        out.push({ chain: a.chain, resId: a.resId, comp: a.comp,
+                   distance: Math.sqrt(minD2) });
+      }
+    }
+    out.sort((a, b) => a.resId - b.resId);
+    return out;
+  }
+
+  // ───────── YAML emit ─────────
+  function emitYaml(opts) {
+    const lines = [];
+    lines.push("version: 1");
+    lines.push("sequences:");
+    lines.push("  - protein:");
+    lines.push("      id: A");
+    lines.push("      sequence: " + opts.seqA);
+    lines.push("  - ligand:");
+    lines.push("      id: B");
+    lines.push("      ccd: " + opts.ccd);
+    lines.push("  - protein:");
+    lines.push("      id: C");
+    lines.push("      sequence: " + opts.seqC);
+
+    if (opts.pocket && opts.contacts.length) {
+      lines.push("constraints:");
+      lines.push("  - pocket:");
+      lines.push("      binder: B");
+      lines.push("      contacts:");
+      for (const c of opts.contacts) {
+        lines.push(`        - [A, ${c.resId}]   # ${c.comp}${c.resId}`);
+      }
+      lines.push("      max_distance: " + opts.cutoff.toFixed(1));
+      lines.push("      force: " + (opts.force ? "true" : "false"));
+    }
+
+    if (opts.affinity) {
+      lines.push("properties:");
+      lines.push("  - affinity:");
+      lines.push("      binder: B");
+    }
+
+    return lines.join("\n") + "\n";
+  }
+
+  // ───────── UI wiring ─────────
+  const state = { ligandFile: null, complexFile: null,
+                  ligandCif: null, complexCif: null,
+                  detected: null, yamlText: "" };
+
+  const $ = sel => document.querySelector(sel);
+  const elStatus = $("#status");
+  const elSummary = $("#summary");
+
+  function setStatus(kind, msg) {
+    elStatus.className = "status " + kind;
+    elStatus.textContent = msg;
+    elStatus.style.display = "block";
+  }
+
+  function setSummary(rows) {
+    elSummary.innerHTML = "";
+    for (const [k, v] of rows) {
+      const dt = document.createElement("dt"); dt.textContent = k;
+      const dd = document.createElement("dd"); dd.textContent = v;
+      elSummary.appendChild(dt); elSummary.appendChild(dd);
+    }
+  }
+
+  function wireDrop(zoneId, inputId, nameId, onFile) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    const nameEl = document.getElementById(nameId);
+    input.addEventListener("change", () => {
+      if (input.files[0]) handle(input.files[0]);
+    });
+    zone.addEventListener("dragover", e => {
+      e.preventDefault(); zone.classList.add("over");
+    });
+    zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+    zone.addEventListener("drop", e => {
+      e.preventDefault(); zone.classList.remove("over");
+      const f = e.dataTransfer.files[0]; if (f) handle(f);
+    });
+    function handle(f) {
+      nameEl.textContent = f.name;
+      zone.classList.add("loaded");
+      onFile(f);
+    }
+  }
+
+  async function readFile(f) {
+    return await f.text();
+  }
+
+  function refreshDetection() {
+    if (!state.ligandCif || !state.complexCif) return;
+
+    const ligand = detectLigand(state.ligandCif);
+    if (!ligand) {
+      setStatus("err", "No ligand HETATM found in the ligand CIF.");
+      $("#generate").disabled = true;
+      return;
+    }
+
+    const ligandProteins = proteinChains(state.ligandCif);
+    if (!ligandProteins.length) {
+      setStatus("err", "No protein chain found in the ligand CIF.");
+      $("#generate").disabled = true;
+      return;
+    }
+    // Protein A = longest protein chain in the ligand CIF.
+    ligandProteins.sort((a, b) => b.length - a.length);
+    const chainA = ligandProteins[0].name;
+    const seqA = chainSequence(state.ligandCif, chainA);
+
+    // Protein B = chain in complex CIF that is LEAST similar to seqA.
+    const complexProteins = proteinChains(state.complexCif);
+    if (complexProteins.length < 1) {
+      setStatus("err", "No protein chain in the complex CIF.");
+      $("#generate").disabled = true;
+      return;
+    }
+    const scored = complexProteins.map(c => {
+      const seq = chainSequence(state.complexCif, c.name);
+      return { name: c.name, seq, sim: kmerSimilarity(seqA, seq) };
+    });
+    // Match A to highest-similarity chain; B is the highest-scoring remaining.
+    scored.sort((a, b) => b.sim - a.sim);
+    const matchA = scored[0];
+    let chainB = scored.find(c => c.name !== matchA.name);
+    if (!chainB && complexProteins.length === 1) {
+      // Single-chain complex CIF — treat that single chain as Protein B.
+      chainB = scored[0];
+    }
+    const seqC = chainB ? chainB.seq : "";
+
+    state.detected = {
+      ligand, chainA, seqA,
+      chainBSource: chainB ? chainB.name : null,
+      seqC,
+      matchSimilarity: matchA ? matchA.sim : 0,
+    };
+
+    const warnLig = ["LIG","UNL","UNK"].includes(ligand.comp);
+    setSummary([
+      ["Ligand", `${ligand.comp} (chain ${ligand.chain}, res ${ligand.resId})`],
+      ["Protein A chain (src → Boltz)", `${chainA} → A (${seqA.length} aa)`],
+      ["Protein B chain (src → Boltz)", chainB
+        ? `${chainB.name} → C (${seqC.length} aa)` : "— none found —"],
+      ["A↔complex match similarity", matchA ? matchA.sim.toFixed(3) : "n/a"],
+    ]);
+
+    if (warnLig) {
+      setStatus("warn", `Ligand named "${ligand.comp}" is generic. Provide the real PDB CCD code in "Ligand CCD override" (e.g. A8S for abscisic acid).`);
+    } else if (!chainB) {
+      setStatus("warn", "Could not identify Protein B in the complex CIF.");
+    } else if (matchA && matchA.sim < 0.3) {
+      setStatus("warn", "Low similarity between Protein A and the closest chain in the complex CIF — double-check chain assignment in the summary.");
+    } else {
+      setStatus("ok", "Both files parsed. Ready to generate.");
+    }
+    $("#generate").disabled = !seqA || !seqC;
+  }
+
+  async function loadFile(slot, f) {
+    try {
+      const text = await readFile(f);
+      const cif = parseCif(text);
+      if (slot === "ligand") { state.ligandFile = f; state.ligandCif = cif; }
+      else { state.complexFile = f; state.complexCif = cif; }
+      refreshDetection();
+    } catch (e) {
+      setStatus("err", `Failed to parse ${f.name}: ${e.message}`);
+      console.error(e);
+    }
+  }
+
+  wireDrop("dropLigand", "fileLigand", "nameLigand",
+           f => loadFile("ligand", f));
+  wireDrop("dropComplex", "fileComplex", "nameComplex",
+           f => loadFile("complex", f));
+
+  $("#generate").addEventListener("click", () => {
+    if (!state.detected) return;
+    const cutoff = parseFloat($("#cutoff").value) || 6.0;
+    const override = $("#ccdOverride").value.trim();
+    const ccd = override || state.detected.ligand.comp;
+    const wantPocket = $("#optPocket").checked;
+    const wantAffinity = $("#optAffinity").checked;
+    const wantForce = $("#optForce").checked;
+
+    let contacts = [];
+    if (wantPocket) {
+      try {
+        contacts = pocketContacts(state.ligandCif, state.detected.ligand, cutoff);
+      } catch (e) {
+        setStatus("err", "Pocket calc failed: " + e.message);
+        return;
+      }
+      if (!contacts.length) {
+        setStatus("warn", `No CA atoms within ${cutoff} Å of the ligand. Pocket block skipped.`);
+      }
+    }
+
+    const yaml = emitYaml({
+      seqA: state.detected.seqA,
+      seqC: state.detected.seqC,
+      ccd,
+      contacts,
+      cutoff,
+      pocket: wantPocket && contacts.length > 0,
+      affinity: wantAffinity,
+      force: wantForce,
+    });
+
+    state.yamlText = yaml;
+    $("#yamlOut").value = yaml;
+    $("#copy").disabled = false;
+    $("#download").disabled = false;
+
+    const cName = contacts.length ? ` · ${contacts.length} pocket contacts` : "";
+    setStatus("ok", `YAML generated · ligand ${ccd}${cName}.`);
+  });
+
+  $("#copy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText($("#yamlOut").value);
+      setStatus("ok", "Copied YAML to clipboard.");
+    } catch {
+      setStatus("warn", "Clipboard blocked — select the text and copy manually.");
+    }
+  });
+
+  $("#download").addEventListener("click", () => {
+    const name = ($("#jobName").value.trim()
+      || autoJobName(state.ligandFile, state.complexFile)
+      || "boltz_input") + ".yaml";
+    const blob = new Blob([$("#yamlOut").value], { type: "text/yaml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  function autoJobName(a, b) {
+    if (!a || !b) return null;
+    const stem = f => f.name.replace(/\.[^.]+$/, "");
+    return `${stem(a)}__${stem(b)}`;
+  }
+})();
+</script>
+</body>
+</html>
