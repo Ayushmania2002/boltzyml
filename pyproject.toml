@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "boltzyml"
-version = "0.1.2"
+version = "1.0.0"
 description = "Preprocessing file generator for Boltz-2 ternary (Protein 1 + Ligand + Protein 2) binding prediction."
 readme = "README.md"
 requires-python = ">=3.10"
