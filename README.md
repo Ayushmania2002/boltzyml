@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/v/boltzyml.svg?color=2563eb&label=PyPI&v=1" alt="PyPI version"></a>
   <a href="https://pypi.org/project/boltzyml/"><img src="https://img.shields.io/pypi/pyversions/boltzyml.svg?color=2563eb&label=Python&v=1" alt="Python versions"></a>
-  <a href="https://pypistats.org/packages/boltzyml"><img src="https://img.shields.io/pypi/dm/boltzyml.svg?color=2563eb&label=downloads&v=1" alt="PyPI downloads"></a>
+  <a href="https://pypistats.org/packages/boltzyml"><img src="https://img.shields.io/pypi/dt/boltzyml.svg?color=2563eb&label=downloads&v=1" alt="PyPI downloads"></a>
   <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/boltzyml.svg?color=0e9f6e&label=license&v=1" alt="License"></a>
   <a href="https://github.com/Ayushmania2002/boltzyml/stargazers"><img src="https://img.shields.io/github/stars/Ayushmania2002/boltzyml.svg?color=f59e0b&label=stars&v=1" alt="GitHub stars"></a>
   <a href="https://ayushmania2002.github.io/boltzyml/"><img src="https://img.shields.io/badge/web%20app-live-0e9f6e.svg?v=1" alt="Web app"></a>
