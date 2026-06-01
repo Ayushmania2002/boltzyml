@@ -4,13 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "boltzyml"
-version = "1.0.0"
+version = "1.0.1"
 description = "Preprocessing file generator for Boltz-2 ternary (Protein 1 + Ligand + Protein 2) binding prediction."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
+    { name = "Ayushman Mallick", email = "ayushmania2002@gmail.com" },
+]
+maintainers = [
     { name = "Ayushman Mallick", email = "ayushmania2002@gmail.com" },
 ]
 keywords = [
