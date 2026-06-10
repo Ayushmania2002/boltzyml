@@ -158,8 +158,8 @@
     <a href="https://boltz.bio" target="_blank" rel="noopener">Boltz-2 API</a> predictions —
     binary, ternary, or N-body — directly from your browser. Define entities, drop in CIF/PDB
     templates (BoltzYML repairs the metadata that breaks the parser), set sampling options, then
-    submit with <strong>your own API key</strong>. Your key stays in your browser and is sent only
-    to the proxy you control.
+    submit with <strong>your own API key</strong>. Your key stays in your browser and is forwarded
+    only through BoltzYML's open-source proxy to Boltz — never stored. No setup needed.
   </p>
   <p class="modes">
     Need the local-CLI <code class="inline">version: 1</code> YAML (Protein + Ligand + Protein)?
@@ -227,21 +227,18 @@
   <!-- STAGE 2 — Submit -->
   <section class="card">
     <h2><span class="step">2</span> Submit with your API key</h2>
-    <div class="grid2">
-      <label class="field"><span>Proxy URL <span style="color:var(--muted)">(your deployed Worker — see worker/README.md)</span></span>
-        <input type="text" id="proxyUrl" placeholder="https://boltzyml-proxy.you.workers.dev"></label>
-      <label class="field"><span>Boltz API key <span style="color:var(--muted)">(kept in this tab only)</span></span>
-        <input type="password" id="apiKey" placeholder="sk_bc_ws_live_..." autocomplete="off"></label>
-    </div>
+    <label class="field" style="max-width:480px"><span>Boltz API key <span style="color:var(--muted)">(kept in this browser tab only)</span></span>
+      <input type="password" id="apiKey" placeholder="sk_bc_ws_live_..." autocomplete="off"></label>
     <div class="actions">
       <label class="checkbox"><input type="checkbox" id="rememberKey"> Remember key for this tab</label>
-      <button class="ghost tiny" id="testProxy">Test proxy</button>
+      <button class="ghost tiny" id="testProxy">Check service</button>
       <span class="grow" style="flex:1"></span>
       <button class="primary" id="submitBtn" disabled>Submit prediction</button>
     </div>
-    <p class="hint-p">Your key is sent only to the proxy URL above (which forwards it to Boltz and
-      stores nothing). It is never sent to GitHub Pages or anyone else. Templates are uploaded to your
-      proxy so the Boltz API can fetch them.</p>
+    <p class="hint-p">Submissions go through BoltzYML's
+      <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/worker/worker.js" target="_blank" rel="noopener">open-source proxy</a>,
+      which forwards your key to Boltz and <strong>stores nothing</strong>. Your key is never sent to
+      GitHub Pages or anyone else. You only need your own Boltz API key — no setup required.</p>
     <div id="submitStatus" class="status info" style="display:none"></div>
   </section>
 
@@ -697,7 +694,15 @@
 
   // ───────────────────────── submit (Stage 2) ─────────────────────────
   function setSubmitStatus(kind, msg) { const s = $("#submitStatus"); s.className = "status " + kind; s.innerHTML = msg; s.style.display = "block"; }
-  function proxy() { return $("#proxyUrl").value.trim().replace(/\/+$/, ""); }
+  // ── BoltzYML's hosted submission proxy ───────────────────────────────────
+  //  To migrate to a different Worker (e.g. when the free tier is exhausted),
+  //  change THIS ONE LINE and redeploy the page. Power users / testing can
+  //  override per-visit with ?proxy=https://my-worker.workers.dev
+  const PROXY_URL = "https://boltzyml-proxy.boltzyml-ayushman.workers.dev";
+  function proxy() {
+    const override = new URLSearchParams(location.search).get("proxy");
+    return (override || PROXY_URL).replace(/\/+$/, "");
+  }
   function apiKey() { return $("#apiKey").value.trim(); }
 
   async function hostTemplate(cleaned) {
@@ -960,15 +965,12 @@
   $("#refreshAll").addEventListener("click", () => jobs.forEach(pollJob));
   $("#clearJobs").addEventListener("click", () => { if (confirm("Clear the local job list? (Does not cancel jobs on Boltz.)")) { jobs = []; saveJobs(); renderJobs(); } });
   $("#testProxy").addEventListener("click", async () => {
-    if (!proxy()) return setSubmitStatus("err", "Enter a proxy URL.");
     try { const r = await fetch(proxy() + "/health"); const j = await r.json();
-      setSubmitStatus(j.ok ? "ok" : "warn", "Proxy reachable · template store: " + (j.templateStore ? "ready" : "<b>not bound</b> (templates will fail — see worker/README.md)") + "."); }
-    catch (e) { setSubmitStatus("err", "Proxy unreachable: " + e.message); }
+      setSubmitStatus(j.ok ? "ok" : "warn", "Service online" + (j.templateStore ? " · templates supported" : " · templates unavailable") + "."); }
+    catch (e) { setSubmitStatus("err", "Service unreachable right now: " + e.message); }
   });
 
-  // settings persistence (proxy URL in localStorage; key in sessionStorage if opted in)
-  $("#proxyUrl").value = localStorage.getItem("boltzyml_proxy") || "";
-  $("#proxyUrl").addEventListener("input", () => localStorage.setItem("boltzyml_proxy", proxy()));
+  // settings persistence (API key in sessionStorage only, if opted in)
   if (sessionStorage.getItem("boltzyml_key")) { $("#apiKey").value = sessionStorage.getItem("boltzyml_key"); $("#rememberKey").checked = true; }
   $("#apiKey").addEventListener("input", () => { if ($("#rememberKey").checked) sessionStorage.setItem("boltzyml_key", apiKey()); });
   $("#rememberKey").addEventListener("change", e => { if (e.target.checked) sessionStorage.setItem("boltzyml_key", apiKey()); else sessionStorage.removeItem("boltzyml_key"); });
