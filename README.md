@@ -53,7 +53,9 @@
   &nbsp;·&nbsp;
   <a href="#boltzyml-v20--hosted-api-builder--submitter">v2.0 details</a>
   &nbsp;·&nbsp;
-  <a href="#why-a-proxy">v2.0 proxy</a>
+  <a href="#using-boltzyml-v20--just-bring-your-boltz-api-key">How to use v2.0</a>
+  &nbsp;·&nbsp;
+  <a href="#getting-a-boltz-api-key--cost">Get an API key</a>
 </p>
 
 ---
@@ -244,17 +246,70 @@ any binary, ternary, or N-body mix of proteins, ligands (CCD or SMILES), DNA, an
 | --- | --- |
 | **1 · Build** | Arbitrary entity sets (protein / ligand-CCD / ligand-SMILES / DNA / RNA), per-chain IDs, binder selection, and full sampling control (`num_samples`, `recycling_steps`, `sampling_steps`, `step_scale`, MSA mode). |
 | **1 · Clean templates** | Drop a raw RCSB/ChimeraX `.cif`/`.pdb`. BoltzYML rewrites `_struct_asym` to remove phantom chains, strips waters/ligands, repairs modified residues (e.g. `OCY → CYS`), and deletes `_pdbx_poly_seq_scheme` / `_struct_conn` records — the exact fixes that otherwise make the Boltz template parser fail with `StopIteration` / `Invalid input schema`. Then map each template chain to a prediction chain. |
-| **2 · Submit** | Paste your Boltz API key and submit. The key lives only in your browser tab and is sent solely to a **proxy you deploy and control**. |
-| **3 · Results** | Poll job status, read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json`) plus the best structure by ipTM. |
+| **2 · Submit** | Paste **your own Boltz API key** and click submit — no setup, no install. Your key lives only in your browser tab and is forwarded to Boltz through BoltzYML's open-source proxy, which stores nothing. |
+| **3 · Results** | Poll job status, read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json` + a branded `README.txt` with citations and a how-to-interpret guide) plus the best structure by ipTM. |
 
-### Why a proxy?
+### Using BoltzYML v2.0 — just bring your Boltz API key
 
-`api.boltz.bio` sends no CORS headers, so a static page (GitHub Pages) cannot call it directly, and the
-result files are likewise CORS-blocked. v2.0 therefore talks to a **tiny stateless Cloudflare Worker**
-that forwards requests, hosts cleaned templates transiently so Boltz can fetch them, and proxies result
-downloads. Your API key passes through in a header and is **never logged or stored**.
+No installation, no proxy setup. The whole workflow is **drop files → paste key → submit → download**:
 
-Deploy it once (free, ~3 minutes, no payment method needed) — see [`worker/README.md`](worker/README.md):
+1. **Get a Boltz API key** ([instructions below](#getting-a-boltz-api-key--cost)).
+2. Open the app: **<https://ayushmania2002.github.io/boltzyml/v2.html>**
+3. **Define your complex** — add entities (protein sequence, ligand by CCD code or SMILES, DNA, RNA), give each a single-letter chain ID, and mark a ligand as **binder** if you want affinity/pose scoring.
+4. **(Optional) Drop a template** — a `.cif`/`.pdb` from RCSB, AlphaFold, ChimeraX, etc. BoltzYML auto-cleans it **in your browser**; then map each template chain to a prediction chain.
+5. **Set sampling options** (or keep the defaults) and click **Rebuild** to preview the exact payload.
+6. **Paste your Boltz API key** and click **Submit prediction**.
+7. Under **Jobs & results**: **Poll** until `succeeded`, then **Download results** — you get a `.zip` of every sample structure + `metrics.json` + `README.txt`, plus the best structure by ipTM.
+
+### Getting a Boltz API key &amp; cost
+
+The hosted Boltz-2 API is a paid service (currently in **beta**), run by Boltz — separate from BoltzYML.
+
+1. Go to the **[Boltz API docs](https://api.boltz.bio/docs/api/)**, create an account, and generate an API key.
+2. Boltz includes **$5 of free credit every month**; paid top-ups / subscriptions are available — check the **current rates on the Boltz site/docs** (pricing can change during beta).
+3. Paste the key into BoltzYML v2.0. It stays in your browser tab only (optionally remembered for the session) and is never sent anywhere except through the proxy to Boltz.
+
+**Rough cost per prediction** *(approximate — confirm current rates at the link above):* cost scales with
+**`num_samples` × complex size**. A typical job runs on the order of **a few cents up to ~$0.50**, so the
+**$5 monthly free credit comfortably covers dozens of small jobs**. Larger complexes and higher
+`num_samples` cost more.
+
+> ⚠️ The Boltz API is in **beta** — endpoints, pricing, and rate limits may change. Always check the [official docs](https://api.boltz.bio/docs/api/) for current details.
+
+### How your inputs are processed — and what is (not) stored
+
+**All parsing and cleaning happens in your browser.** Your raw files are never uploaded for processing.
+
+1. **In your browser (client-side JavaScript):**
+   - Sequences and ligand codes you type stay local.
+   - When you drop a template CIF/PDB, BoltzYML parses it locally and: detects which chains actually
+     have coordinates, rewrites `_struct_asym` to drop phantom chains, strips waters/ligands (HETATM),
+     maps modified residues (e.g. `OCY → CYS`) to standard parents, and removes
+     `_pdbx_poly_seq_scheme` / `_struct_conn` metadata that would otherwise crash the Boltz parser.
+   - It assembles the Boltz API payload (`entities` / `templates` / `binding` / `model_options`).
+2. **At submission**, your browser sends the **already-cleaned** payload plus your API key to the proxy
+   — a small, stateless, open-source Cloudflare Worker ([`worker/worker.js`](worker/worker.js)). The proxy:
+   - uploads each cleaned template to transient storage so Boltz can fetch it by URL,
+   - forwards the payload to `api.boltz.bio` with your key in a request header,
+   - relays status polls and proxies result downloads (Boltz's result files are otherwise CORS-blocked
+     for browsers).
+
+**Data handling / privacy:**
+
+- **Your API key** is forwarded to Boltz once per request and is **never logged or stored** by the proxy.
+- **Your sequences / payload** pass through the proxy to Boltz and are **not stored** by the proxy.
+- **Cleaned template files** are the *only* thing held, and only **transiently** — in Workers KV with a
+  **2-hour TTL**, after which they auto-delete (Boltz needs a fetchable URL for templates).
+- The proxy is **stateless and open-source**, so you can read exactly what it does.
+
+### Why a proxy at all?
+
+`api.boltz.bio` sends no CORS headers, so a static page (GitHub Pages) can't call it directly, and result
+files are likewise CORS-blocked. v2.0 therefore routes through a tiny stateless Cloudflare Worker. The
+public app uses a **hosted proxy maintained by the author** — you don't deploy anything.
+
+**Prefer to run your own proxy?** (e.g. for a lab, or to use your own free-tier quota.) Deploy the included
+Worker in a few minutes and point the app at it with `?proxy=https://your-worker.workers.dev`:
 
 ```bash
 cd worker
@@ -263,8 +318,20 @@ npx wrangler kv namespace create TEMPLATES   # prints an id → paste into wrang
 npx wrangler deploy
 ```
 
-Paste the printed Worker URL into the **Proxy URL** box in the v2.0 app, add your key, and submit.
-Cleaned templates are stored in Workers KV with a 2-hour TTL, so they auto-expire.
+See [`worker/README.md`](worker/README.md). Templates are stored in Workers KV with a 2-hour TTL, and no
+payment method is required.
+
+### Boltz API (beta) — SDKs for advanced / programmatic use
+
+You don't need these to use BoltzYML (the web tool handles everything), but the Boltz API ships official
+client libraries if you want to script submissions directly:
+
+| Language | Install | Docs |
+| --- | --- | --- |
+| TypeScript `0.43.0` | `npm install boltz-api` | [docs](https://api.boltz.bio/docs/api/typescript) |
+| Python `0.33.0` | `pip install boltz-api` | [docs](https://api.boltz.bio/docs/api/python) |
+| Go `v0.23.0` | `go get -u 'github.com/boltz-bio/boltz-api-go@v0.0.1'` | [docs](https://api.boltz.bio/docs/api/go) |
+| CLI `v0.28.0` | `irm https://install.boltz.bio/boltz-api/install.ps1 \| iex` | [docs](https://api.boltz.bio/docs/api/cli) |
 
 ---
 
