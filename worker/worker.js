@@ -118,7 +118,8 @@ export default {
         // 2-hour TTL: a template is only needed briefly, between submission and
         // the Boltz API fetching it — KV then auto-deletes it.
         await env.TEMPLATES.put("tpl/" + id, cif, { expirationTtl: 7200 });
-        const served = `${url.origin}/t/${id}`;
+        // URL must end in .cif so the Boltz API can infer the template format.
+        const served = `${url.origin}/t/${id}.cif`;
         return json({ url: served, id });
       }
 
