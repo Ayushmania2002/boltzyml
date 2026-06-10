@@ -151,6 +151,7 @@
   <div class="brand">
     <img src="logo.png" alt="BoltzYML" class="brand-logo">
     <span class="v">v2.0</span>
+    <span style="color:var(--muted);font-size:13px;">by <strong style="color:var(--ink-soft);">Ayushman Mallick</strong></span>
   </div>
   <p class="lede">
     Build, <strong>auto-clean templates for</strong>, and <strong>submit</strong> hosted
@@ -258,10 +259,28 @@
 </main>
 
 <footer>
-  BoltzYML v2.0 — runs in your browser; submission goes through a proxy you deploy and control.
-  · <a href="https://github.com/Ayushmania2002/boltzyml" target="_blank" rel="noopener">GitHub</a>
-  · <a href="index.html">v1 CLI generator</a>
-  · <a href="https://boltz.bio" target="_blank" rel="noopener">Boltz</a>
+  <p style="margin:0 0 6px;color:var(--ink-soft);">
+    <strong>BoltzYML v2.0</strong> — runs in your browser; submission goes through a proxy you deploy and control.
+  </p>
+  <p style="margin:0 0 12px;">
+    © 2026 <strong>Ayushman Mallick</strong>. Released under the
+    <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>.
+    &nbsp;·&nbsp;
+    <a href="https://github.com/Ayushmania2002/boltzyml" target="_blank" rel="noopener">GitHub</a>
+    &nbsp;·&nbsp;
+    <a href="index.html">v1 CLI generator</a>
+    &nbsp;·&nbsp;
+    <a href="https://boltz.bio" target="_blank" rel="noopener">Boltz</a>
+  </p>
+  <p style="margin:0;padding:10px 12px;background:var(--panel-2);border:1px solid var(--border);
+            border-radius:8px;font-size:12px;color:var(--ink-soft);line-height:1.55;">
+    <strong>If you use BoltzYML in published work, please cite:</strong><br>
+    Mallick, A. <em>BoltzYML: a preprocessing-file generator and hosted-API submitter for Boltz-2
+    binding prediction.</em> Zenodo (2026).
+    <a href="https://doi.org/10.5281/zenodo.20397272" target="_blank" rel="noopener">doi.org/10.5281/zenodo.20397272</a>.<br>
+    Also cite Boltz-2: Wohlwend, J. et al. <em>Boltz-2: Towards Accurate and Efficient Binding Affinity
+    Prediction.</em> 2024.
+  </p>
 </footer>
 
 <script>
@@ -776,6 +795,72 @@
     while ((m = re.exec(s))) map.set(Number(m[1]), m[0]);
     return map;
   }
+  // ── BoltzYML branding / citation, stamped into every download ──────────
+  const BRAND_URL = "https://github.com/Ayushmania2002/boltzyml";
+  const ZENODO = "https://doi.org/10.5281/zenodo.20397272";
+  function cifHeader(job) {
+    return [
+      "# Structure predicted with Boltz-2 via BoltzYML v2.0 — by Ayushman Mallick",
+      "# " + BRAND_URL,
+      "# Job: " + job.name + "   Prediction ID: " + job.id,
+      "# Cite: Mallick, A. BoltzYML. Zenodo (2026). " + ZENODO,
+      "# Cite: Wohlwend et al. Boltz-2 (2024). https://github.com/jwohlwend/boltz",
+      "#", ""
+    ].join("\n");
+  }
+  function buildReadme(job, out, nSamples) {
+    const bm = (out.best_sample && out.best_sample.metrics) || {};
+    const f = v => v == null ? "n/a" : (Math.round(v * 1000) / 1000).toFixed(3);
+    const L = [];
+    L.push("BoltzYML v2.0 — Boltz-2 prediction results");
+    L.push("by Ayushman Mallick · " + BRAND_URL);
+    L.push("=".repeat(64), "");
+    L.push("Job:            " + job.name);
+    L.push("Prediction ID:  " + job.id);
+    L.push("Generated:      " + new Date().toISOString());
+    L.push("Samples:        " + nSamples, "");
+    L.push("FILES IN THIS ARCHIVE");
+    L.push("-".repeat(64));
+    L.push("  *_sample<N>.cif   Predicted 3D structures, one per diffusion sample.");
+    L.push("  metrics.json      Confidence metrics for the best and all samples.");
+    L.push("  <job>_best.cif    (downloaded separately) The highest-ipTM sample.");
+    L.push("  README.txt        This file.", "");
+    L.push("BEST-SAMPLE CONFIDENCE");
+    L.push("-".repeat(64));
+    L.push("  ipTM (interface pTM) ......... " + f(bm.iptm));
+    L.push("  pTM  (predicted TM-score) .... " + f(bm.ptm));
+    L.push("  complex pLDDT ................ " + f(bm.complex_plddt));
+    if (bm.ligand_iptm != null)   L.push("  ligand ipTM .................. " + f(bm.ligand_iptm));
+    if (bm.protein_iptm != null)  L.push("  protein ipTM ................. " + f(bm.protein_iptm));
+    if (bm.complex_iplddt != null) L.push("  complex ipLDDT (interface) ... " + f(bm.complex_iplddt));
+    L.push("");
+    L.push("HOW TO INTERPRET  (all scores 0–1; higher = more confident)");
+    L.push("-".repeat(64));
+    L.push("  ipTM   Confidence in the RELATIVE placement of the chains (the interface).");
+    L.push("         >0.8 high · 0.6–0.8 good · 0.5–0.6 borderline · <0.5 low.");
+    L.push("         This is the key number for protein–protein / protein–ligand docking.");
+    L.push("  pTM    Confidence in the OVERALL fold of the whole complex (>0.5 = confident).");
+    L.push("  ligand ipTM  Confidence specifically in the ligand's binding pose (>0.5 reliable).");
+    L.push("  pLDDT  Per-atom local confidence, averaged (>0.7 = well-resolved; lower = flexible).");
+    L.push("  ipLDDT Same idea, restricted to interface atoms.");
+    L.push("");
+    L.push("  Tip: samples are ranked by ipTM in metrics.json; <job>_best.cif is the top one.");
+    L.push("       Open .cif files in PyMOL, ChimeraX, or Mol* to inspect the structure.");
+    L.push("");
+    L.push("CITATION — please cite BOTH if you use these results");
+    L.push("-".repeat(64));
+    L.push("  BoltzYML:");
+    L.push("    Mallick, A. BoltzYML: a preprocessing-file generator and hosted-API");
+    L.push("    submitter for Boltz-2 binding prediction. Zenodo (2026).");
+    L.push("    " + ZENODO);
+    L.push("");
+    L.push("  Boltz-2:");
+    L.push("    Wohlwend, J. et al. Boltz-2: Towards Accurate and Efficient Binding");
+    L.push("    Affinity Prediction. 2024. https://github.com/jwohlwend/boltz");
+    L.push("");
+    return L.join("\n");
+  }
+
   async function downloadResults(job) {
     if (!proxy() || !apiKey()) { job.note = "Need proxy URL + API key."; job.noteKind = "warn"; renderJobs(); return; }
     job.note = "Fetching results…"; job.noteKind = "info"; renderJobs();
@@ -786,6 +871,8 @@
       const out = j.output;
       const urlMap = extractSampleUrls(out);
       if (!urlMap.size) throw new Error("no result URLs found in output");
+      const enc = new TextEncoder();
+      const header = cifHeader(job);
       const files = [];
       const nums = [...urlMap.keys()].sort((a, b) => a - b);
       for (const n of nums) {
@@ -793,28 +880,36 @@
         const resp = await fetch(proxy() + "/fetch?url=" + encodeURIComponent(u));
         if (!resp.ok) throw new Error("fetch sample " + n + " failed");
         const txt = await resp.text();
-        files.push({ name: `${job.name}_sample${n}.cif`, data: new TextEncoder().encode(txt) });
+        files.push({ name: `${job.name}_sample${n}.cif`, data: enc.encode(header + txt) });
       }
-      // metrics.json
+      // metrics.json — with BoltzYML provenance/citation block
       const metrics = {
+        _boltzyml: {
+          tool: "BoltzYML v2.0", author: "Ayushman Mallick", url: BRAND_URL,
+          job: job.name, prediction_id: job.id, generated: new Date().toISOString(),
+          cite: ["Mallick, A. BoltzYML. Zenodo (2026). " + ZENODO,
+                 "Wohlwend et al. Boltz-2 (2024). https://github.com/jwohlwend/boltz"]
+        },
         best_sample: { metrics: out.best_sample ? out.best_sample.metrics : null },
         all_sample_results: (out.all_sample_results || []).map(s => ({ metrics: s.metrics }))
       };
-      files.push({ name: "metrics.json", data: new TextEncoder().encode(JSON.stringify(metrics, null, 2)) });
+      files.push({ name: "metrics.json", data: enc.encode(JSON.stringify(metrics, null, 2)) });
+      // README.txt — branding, citations, interpretation guide
+      files.push({ name: "README.txt", data: enc.encode(buildReadme(job, out, nums.length)) });
       // zip
       const blob = zipStore(files);
       triggerDownload(blob, job.name + "_results.zip");
-      // best structure by ipTM
+      // best structure by ipTM (also branded)
       let bestIdx = 0, best = -Infinity;
       (out.all_sample_results || []).forEach((s, i) => { const v = s.metrics && s.metrics.iptm != null ? +s.metrics.iptm : -Infinity; if (v > best) { best = v; bestIdx = i; } });
       const bestUrl = urlMap.get(bestIdx) || urlMap.get(nums[0]);
       if (bestUrl) {
         const br = await fetch(proxy() + "/fetch?url=" + encodeURIComponent(bestUrl));
         const bt = await br.text();
-        triggerDownload(new Blob([bt], { type: "chemical/x-cif" }), job.name + "_best.cif");
+        triggerDownload(new Blob([header + bt], { type: "chemical/x-cif" }), job.name + "_best.cif");
       }
       job.metrics = out.best_sample ? out.best_sample.metrics : job.metrics;
-      job.note = "Downloaded " + nums.length + " samples + metrics.json + best structure (ipTM " + fmtNum(best) + ").";
+      job.note = "Downloaded " + nums.length + " samples + metrics.json + README + best structure (ipTM " + fmtNum(best) + ").";
       job.noteKind = "ok"; saveJobs(); renderJobs();
     } catch (e) { job.note = "Download error: " + e.message; job.noteKind = "err"; renderJobs(); }
   }
