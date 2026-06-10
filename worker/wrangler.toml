@@ -2,16 +2,13 @@ name = "boltzyml-proxy"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 
-# Transient template hosting. The browser uploads a cleaned CIF here; the Boltz
-# API fetches it back by URL during prediction. Create the bucket once with:
-#   npx wrangler r2 bucket create boltzyml-templates
-# then deploy with:
+# Transient template hosting via Workers KV (no payment method required).
+# Create the namespace once — it prints an id:
+#   npx wrangler kv namespace create TEMPLATES
+# Paste that id below as `id = "..."`, then deploy:
 #   npx wrangler deploy
-[[r2_buckets]]
-binding = "TEMPLATES_BUCKET"
-bucket_name = "boltzyml-templates"
-
-# Optional: auto-expire stored templates. Configure a lifecycle rule in the
-# Cloudflare dashboard (R2 → boltzyml-templates → Settings → Object lifecycle)
-# to delete objects under the "tpl/" prefix after ~1 day. Templates are only
-# needed for the few minutes between submit and the Boltz API fetching them.
+# Stored templates auto-expire after 2h (set in worker.js), so the namespace
+# stays empty on its own.
+[[kv_namespaces]]
+binding = "TEMPLATES"
+id = "685a101fe6a44938b8afc48c75046a7c"

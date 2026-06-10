@@ -13,12 +13,12 @@
  *   OPTIONS *              → preflight 204
  *   POST /submit           → forward prediction to Boltz; body {input, idempotency_key?, model?}
  *   GET  /status?id=<id>   → forward retrieve
- *   POST /template         → store CIF text in R2, return { url }
+ *   POST /template         → store CIF text in KV (2h TTL), return { url }
  *   GET  /t/<id>           → serve a stored CIF (the URL the Boltz API fetches)
  *   GET  /fetch?url=<u>    → proxy a Boltz/S3 result URL back with CORS
  *
  * Bindings (see wrangler.toml):
- *   TEMPLATES_BUCKET  R2 bucket for transient template hosting (recommended)
+ *   TEMPLATES  Workers KV namespace for transient template hosting
  */
 
 const BOLTZ_BASE = "https://api.boltz.bio";
@@ -105,9 +105,9 @@ export default {
 
       // ── Host a cleaned CIF template (so Boltz can fetch it by URL) ───────
       if (path === "/template" && request.method === "POST") {
-        if (!env.TEMPLATES_BUCKET) {
+        if (!env.TEMPLATES) {
           return json(
-            { error: "No template store bound. Add an R2 bucket binding TEMPLATES_BUCKET (see worker/README.md)." },
+            { error: "No template store bound. Add a KV namespace binding TEMPLATES (see worker/README.md)." },
             501
           );
         }
@@ -115,21 +115,21 @@ export default {
         if (!cif || cif.length < 10) return json({ error: "Empty template body." }, 400);
         if (cif.length > 8 * 1024 * 1024) return json({ error: "Template too large (>8 MB)." }, 413);
         const id = randId();
-        await env.TEMPLATES_BUCKET.put("tpl/" + id + ".cif", cif, {
-          httpMetadata: { contentType: "chemical/x-cif" },
-        });
+        // 2-hour TTL: a template is only needed briefly, between submission and
+        // the Boltz API fetching it — KV then auto-deletes it.
+        await env.TEMPLATES.put("tpl/" + id, cif, { expirationTtl: 7200 });
         const served = `${url.origin}/t/${id}`;
         return json({ url: served, id });
       }
 
       // ── Serve a stored template (public; this is what Boltz GETs) ────────
       if (path.startsWith("/t/") && request.method === "GET") {
-        if (!env.TEMPLATES_BUCKET) return json({ error: "No template store bound." }, 501);
+        if (!env.TEMPLATES) return json({ error: "No template store bound." }, 501);
         const id = path.slice(3).replace(/\.cif$/, "");
         if (!/^[a-z0-9]+$/.test(id)) return json({ error: "Bad template id." }, 400);
-        const obj = await env.TEMPLATES_BUCKET.get("tpl/" + id + ".cif");
-        if (!obj) return json({ error: "Template not found or expired." }, 404);
-        return new Response(obj.body, {
+        const cif = await env.TEMPLATES.get("tpl/" + id);
+        if (cif == null) return json({ error: "Template not found or expired." }, 404);
+        return new Response(cif, {
           status: 200,
           headers: {
             "Content-Type": "chemical/x-cif",
@@ -164,7 +164,7 @@ export default {
 
       // ── Health check ────────────────────────────────────────────────────
       if (path === "/" || path === "/health") {
-        return json({ ok: true, service: "boltzyml-proxy", templateStore: !!env.TEMPLATES_BUCKET });
+        return json({ ok: true, service: "boltzyml-proxy", templateStore: !!env.TEMPLATES });
       }
 
       return json({ error: "Not found: " + path }, 404);

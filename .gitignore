@@ -30,3 +30,7 @@ social-preview.png
 *token*.txt
 *.token
 .env.*
+
+# Cloudflare Worker (v2.0 proxy) local artifacts
+worker/.wrangler/
+node_modules/

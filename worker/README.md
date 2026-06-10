@@ -23,7 +23,7 @@ Boltz can fetch them by URL) and proxies result downloads.
 | `GET`  | `/fetch?url=<u>` | Proxy a Boltz/S3 result file back with CORS. |
 | `GET`  | `/health` | `{ ok: true, templateStore: bool }`. |
 
-## Deploy (one time, ~3 minutes, free tier)
+## Deploy (one time, ~3 minutes, free — no payment method needed)
 
 Requires Node.js. From this `worker/` directory:
 
@@ -31,10 +31,16 @@ Requires Node.js. From this `worker/` directory:
 # 1. Log in to Cloudflare (opens a browser)
 npx wrangler login
 
-# 2. Create the R2 bucket used for transient template hosting
-npx wrangler r2 bucket create boltzyml-templates
+# 2. Create the KV namespace used for transient template hosting.
+#    This prints an id — copy it.
+npx wrangler kv namespace create TEMPLATES
 
-# 3. Deploy
+# 3. Paste that id into wrangler.toml, replacing PASTE_KV_NAMESPACE_ID_HERE:
+#       [[kv_namespaces]]
+#       binding = "TEMPLATES"
+#       id = "<the id from step 2>"
+
+# 4. Deploy
 npx wrangler deploy
 ```
 
@@ -49,16 +55,17 @@ curl https://boltzyml-proxy.<your-subdomain>.workers.dev/health
 # {"ok":true,"service":"boltzyml-proxy","templateStore":true}
 ```
 
-If `templateStore` is `false`, the R2 bucket binding is missing — re-check step 2
-and the `[[r2_buckets]]` block in `wrangler.toml`.
+If `templateStore` is `false`, the KV binding is missing — re-check that you
+pasted the id from step 2 into the `[[kv_namespaces]]` block in `wrangler.toml`.
 
 ## Notes
 
 - **No secrets in the Worker.** It holds no API key of its own; each request
-  carries the user's key. Nothing is persisted except uploaded templates in R2.
-- **Template cleanup.** Templates are only needed for the few minutes between
-  submission and Boltz fetching them. Add an R2 lifecycle rule (dashboard → R2 →
-  `boltzyml-templates` → Settings → Object lifecycle) to delete the `tpl/`
-  prefix after ~1 day so the bucket stays empty.
+  carries the user's key. Nothing is persisted except uploaded templates in KV.
+- **Template cleanup is automatic.** Templates are stored with a 2-hour TTL
+  (`worker.js`), so KV deletes them on its own — no lifecycle config needed.
+- **Consistency note.** KV is eventually consistent; in the rare case Boltz
+  fetches a template a second before it propagates, just re-submit. (For
+  strong read-after-write, switch the binding to R2 — requires enabling R2.)
 - **Open-proxy guard.** `/fetch` only retrieves `*.amazonaws.com` and
   `*.boltz.bio` hosts.

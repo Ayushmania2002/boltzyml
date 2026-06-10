@@ -254,16 +254,17 @@ result files are likewise CORS-blocked. v2.0 therefore talks to a **tiny statele
 that forwards requests, hosts cleaned templates transiently so Boltz can fetch them, and proxies result
 downloads. Your API key passes through in a header and is **never logged or stored**.
 
-Deploy it once (free tier, ~3 minutes) — see [`worker/README.md`](worker/README.md):
+Deploy it once (free, ~3 minutes, no payment method needed) — see [`worker/README.md`](worker/README.md):
 
 ```bash
 cd worker
 npx wrangler login
-npx wrangler r2 bucket create boltzyml-templates
+npx wrangler kv namespace create TEMPLATES   # prints an id → paste into wrangler.toml
 npx wrangler deploy
 ```
 
 Paste the printed Worker URL into the **Proxy URL** box in the v2.0 app, add your key, and submit.
+Cleaned templates are stored in Workers KV with a 2-hour TTL, so they auto-expire.
 
 ---
 
