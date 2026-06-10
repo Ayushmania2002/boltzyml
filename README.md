@@ -5,7 +5,8 @@
 <h1 align="center">BoltzYML</h1>
 
 <p align="center">
-  <strong>Preprocessing-file generator for ternary (Protein 1 + Ligand + Protein 2) binding prediction with <a href="https://github.com/jwohlwend/boltz">Boltz-2</a>.</strong>
+  <strong>Two browser tools for <a href="https://github.com/jwohlwend/boltz">Boltz-2</a> structure &amp; binding prediction —<br>
+  <em>v1</em> generates local-CLI YAML for ternary complexes · <em>v2.0</em> builds &amp; submits hosted-API jobs for any complex.</strong>
 </p>
 
 <p align="center">
@@ -18,59 +19,51 @@
   <a href="https://doi.org/10.5281/zenodo.20397272"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20397272-3C7EBC.svg?v=1" alt="Zenodo DOI"></a>
 </p>
 
+<table align="center" width="100%">
+<tr>
+  <th width="50%">🧪&nbsp; BoltzYML v1</th>
+  <th width="50%">🚀&nbsp; BoltzYML v2.0</th>
+</tr>
+<tr>
+  <td align="center"><b><a href="https://ayushmania2002.github.io/boltzyml/">Open v1 web app →</a></b></td>
+  <td align="center"><b><a href="https://ayushmania2002.github.io/boltzyml/v2.html">Open v2.0 web app →</a></b></td>
+</tr>
+<tr valign="top">
+  <td>
+    Ternary <b>Protein 1 + Ligand + Protein 2</b> preprocessing. Drop two CIFs → emits a ready-to-run
+    <b>Boltz CLI YAML</b> (<code>version: 1</code>) with pocket constraints and an affinity block, for
+    local <code>boltz predict</code>. Also shipped as a <a href="https://pypi.org/project/boltzyml/">PyPI CLI</a>.
+    <br><br>→ <a href="#boltzyml-v1--ternary-cli-yaml-generator"><b>v1 details below</b></a>
+  </td>
+  <td>
+    <b>Any</b> binary / ternary / N-body complex (protein · ligand · DNA · RNA). Builds the
+    <b>hosted Boltz-2 API</b> payload, <b>auto-cleans template CIFs</b> in the browser, and
+    <b>submits with your own API key</b> — then polls jobs and downloads results.
+    <br><br>→ <a href="#boltzyml-v20--hosted-api-builder--submitter"><b>v2.0 details below</b></a>
+  </td>
+</tr>
+</table>
+
 <p align="center">
-  <a href="https://ayushmania2002.github.io/boltzyml/"><b>Live web app →</b></a>
+  <a href="#boltzyml-v1--ternary-cli-yaml-generator">v1 details</a>
   &nbsp;·&nbsp;
-  <a href="#boltzyml-v20--hosted-api-builder--submitter">v2.0 (API builder)</a>
+  <a href="#cli">v1 CLI</a>
   &nbsp;·&nbsp;
-  <a href="#cli">CLI</a>
+  <a href="#how-it-works">How v1 works</a>
   &nbsp;·&nbsp;
-  <a href="#how-it-works">How it works</a>
+  <a href="#boltzyml-v20--hosted-api-builder--submitter">v2.0 details</a>
+  &nbsp;·&nbsp;
+  <a href="#why-a-proxy">v2.0 proxy</a>
 </p>
 
 ---
 
-## BoltzYML v2.0 — hosted-API builder &amp; submitter
+## BoltzYML v1 — ternary CLI-YAML generator
 
-> **`v2.html`** — a second, broader tool alongside the v1 ternary generator. Open it at
-> **<https://ayushmania2002.github.io/boltzyml/v2.html>**.
+> **`index.html`** + **PyPI CLI** — the original tool. Live at **<https://ayushmania2002.github.io/boltzyml/>**.
+> Generates the open-source **Boltz CLI** YAML (`version: 1`) for running `boltz predict` on your own machine.
 
-v1 (above) generates the **open-source Boltz CLI** YAML (`version: 1`) for running `boltz predict`
-locally. **v2.0** targets the **hosted Boltz-2 API** instead — it builds the API payload
-(`entities` / `templates` / `binding` / `model_options`), repairs your template CIFs in the browser,
-and submits jobs with **your own API key**. It is not limited to ternary complexes: define any
-binary, ternary, or N-body mix of proteins, ligands, DNA, and RNA.
-
-What it adds over v1:
-
-| Stage | Capability |
-| --- | --- |
-| **1 · Build** | Arbitrary entity sets (protein / ligand-CCD / ligand-SMILES / DNA / RNA), per-chain IDs, binder selection, and full sampling control (`num_samples`, `recycling_steps`, `sampling_steps`, `step_scale`, MSA mode). |
-| **1 · Clean templates** | Drop a raw RCSB/ChimeraX `.cif`/`.pdb`. BoltzYML rewrites `_struct_asym` to remove phantom chains, strips waters/ligands, repairs modified residues (e.g. `OCY → CYS`), and deletes `_pdbx_poly_seq_scheme` / `_struct_conn` records — the exact fixes that otherwise make the Boltz template parser fail with `StopIteration` / `Invalid input schema`. Then map each template chain to a prediction chain. |
-| **2 · Submit** | Paste your Boltz API key and submit. The key lives only in your browser tab and is sent solely to a **proxy you deploy and control**. |
-| **3 · Results** | Poll job status, read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json`) plus the best structure by ipTM. |
-
-### Why a proxy?
-
-`api.boltz.bio` sends no CORS headers, so a static page (GitHub Pages) cannot call it directly, and
-the result files are likewise CORS-blocked. v2.0 therefore talks to a **tiny stateless Cloudflare
-Worker** that forwards requests, hosts cleaned templates transiently so Boltz can fetch them, and
-proxies result downloads. Your API key passes through in a header and is **never logged or stored**.
-
-Deploy it once (free tier, ~3 minutes) — see [`worker/README.md`](worker/README.md):
-
-```bash
-cd worker
-npx wrangler login
-npx wrangler r2 bucket create boltzyml-templates
-npx wrangler deploy
-```
-
-Paste the printed Worker URL into the **Proxy URL** box in the v2.0 app, add your key, and submit.
-
----
-
-## When to use BoltzYML
+## When to use BoltzYML v1
 
 Use this tool **only** if you want to study how the interaction between **two proteins changes in the presence of a ligand**.
 
@@ -235,6 +228,42 @@ Sanity checks:
 - `iptm > 0.6` — confident protein–protein interface
 - `ligand_iptm > 0.5` — confident ligand placement
 - A low off-diagonal block between chain `A` and chain `C` in the PAE map = confident interaction
+
+---
+
+## BoltzYML v2.0 — hosted-API builder &amp; submitter
+
+> **`v2.html`** — the second, broader tool. Live at **<https://ayushmania2002.github.io/boltzyml/v2.html>**.
+
+Where v1 emits local-CLI YAML, **v2.0 targets the hosted [Boltz-2 API](https://boltz.bio)**. It builds the
+API payload (`entities` / `templates` / `binding` / `model_options`), repairs your template CIFs in the
+browser, and submits jobs with **your own API key**. It is **not** limited to ternary complexes — define
+any binary, ternary, or N-body mix of proteins, ligands (CCD or SMILES), DNA, and RNA.
+
+| Stage | Capability |
+| --- | --- |
+| **1 · Build** | Arbitrary entity sets (protein / ligand-CCD / ligand-SMILES / DNA / RNA), per-chain IDs, binder selection, and full sampling control (`num_samples`, `recycling_steps`, `sampling_steps`, `step_scale`, MSA mode). |
+| **1 · Clean templates** | Drop a raw RCSB/ChimeraX `.cif`/`.pdb`. BoltzYML rewrites `_struct_asym` to remove phantom chains, strips waters/ligands, repairs modified residues (e.g. `OCY → CYS`), and deletes `_pdbx_poly_seq_scheme` / `_struct_conn` records — the exact fixes that otherwise make the Boltz template parser fail with `StopIteration` / `Invalid input schema`. Then map each template chain to a prediction chain. |
+| **2 · Submit** | Paste your Boltz API key and submit. The key lives only in your browser tab and is sent solely to a **proxy you deploy and control**. |
+| **3 · Results** | Poll job status, read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json`) plus the best structure by ipTM. |
+
+### Why a proxy?
+
+`api.boltz.bio` sends no CORS headers, so a static page (GitHub Pages) cannot call it directly, and the
+result files are likewise CORS-blocked. v2.0 therefore talks to a **tiny stateless Cloudflare Worker**
+that forwards requests, hosts cleaned templates transiently so Boltz can fetch them, and proxies result
+downloads. Your API key passes through in a header and is **never logged or stored**.
+
+Deploy it once (free tier, ~3 minutes) — see [`worker/README.md`](worker/README.md):
+
+```bash
+cd worker
+npx wrangler login
+npx wrangler r2 bucket create boltzyml-templates
+npx wrangler deploy
+```
+
+Paste the printed Worker URL into the **Proxy URL** box in the v2.0 app, add your key, and submit.
 
 ---
 
