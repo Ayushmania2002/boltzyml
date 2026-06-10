@@ -21,10 +21,52 @@
 <p align="center">
   <a href="https://ayushmania2002.github.io/boltzyml/"><b>Live web app →</b></a>
   &nbsp;·&nbsp;
+  <a href="#boltzyml-v20--hosted-api-builder--submitter">v2.0 (API builder)</a>
+  &nbsp;·&nbsp;
   <a href="#cli">CLI</a>
   &nbsp;·&nbsp;
   <a href="#how-it-works">How it works</a>
 </p>
+
+---
+
+## BoltzYML v2.0 — hosted-API builder &amp; submitter
+
+> **`v2.html`** — a second, broader tool alongside the v1 ternary generator. Open it at
+> **<https://ayushmania2002.github.io/boltzyml/v2.html>**.
+
+v1 (above) generates the **open-source Boltz CLI** YAML (`version: 1`) for running `boltz predict`
+locally. **v2.0** targets the **hosted Boltz-2 API** instead — it builds the API payload
+(`entities` / `templates` / `binding` / `model_options`), repairs your template CIFs in the browser,
+and submits jobs with **your own API key**. It is not limited to ternary complexes: define any
+binary, ternary, or N-body mix of proteins, ligands, DNA, and RNA.
+
+What it adds over v1:
+
+| Stage | Capability |
+| --- | --- |
+| **1 · Build** | Arbitrary entity sets (protein / ligand-CCD / ligand-SMILES / DNA / RNA), per-chain IDs, binder selection, and full sampling control (`num_samples`, `recycling_steps`, `sampling_steps`, `step_scale`, MSA mode). |
+| **1 · Clean templates** | Drop a raw RCSB/ChimeraX `.cif`/`.pdb`. BoltzYML rewrites `_struct_asym` to remove phantom chains, strips waters/ligands, repairs modified residues (e.g. `OCY → CYS`), and deletes `_pdbx_poly_seq_scheme` / `_struct_conn` records — the exact fixes that otherwise make the Boltz template parser fail with `StopIteration` / `Invalid input schema`. Then map each template chain to a prediction chain. |
+| **2 · Submit** | Paste your Boltz API key and submit. The key lives only in your browser tab and is sent solely to a **proxy you deploy and control**. |
+| **3 · Results** | Poll job status, read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json`) plus the best structure by ipTM. |
+
+### Why a proxy?
+
+`api.boltz.bio` sends no CORS headers, so a static page (GitHub Pages) cannot call it directly, and
+the result files are likewise CORS-blocked. v2.0 therefore talks to a **tiny stateless Cloudflare
+Worker** that forwards requests, hosts cleaned templates transiently so Boltz can fetch them, and
+proxies result downloads. Your API key passes through in a header and is **never logged or stored**.
+
+Deploy it once (free tier, ~3 minutes) — see [`worker/README.md`](worker/README.md):
+
+```bash
+cd worker
+npx wrangler login
+npx wrangler r2 bucket create boltzyml-templates
+npx wrangler deploy
+```
+
+Paste the printed Worker URL into the **Proxy URL** box in the v2.0 app, add your key, and submit.
 
 ---
 
@@ -200,7 +242,12 @@ Sanity checks:
 
 ```
 boltzyml/
-├── index.html              # Web app (deploy to GitHub Pages as-is)
+├── index.html              # v1 web app — ternary CLI-YAML generator (GitHub Pages)
+├── v2.html                 # v2.0 web app — hosted-API builder, template cleaner, submitter
+├── worker/                 # Stateless Cloudflare Worker proxy for v2.0 submission
+│   ├── worker.js           #   key passthrough + template hosting + result fetch
+│   ├── wrangler.toml       #   deploy config (R2 bucket binding)
+│   └── README.md           #   one-time deploy instructions
 ├── logo.png                # Wordmark — favicon + header logo
 ├── banner.png              # Pipeline schematic — used in this README
 │

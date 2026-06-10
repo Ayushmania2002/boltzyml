@@ -23,3 +23,10 @@ dist/
 build/
 *.whl
 *.tar.gz
+
+social-preview.png
+
+# Secrets — never commit
+*token*.txt
+*.token
+.env.*
