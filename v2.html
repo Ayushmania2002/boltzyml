@@ -800,6 +800,40 @@
     while ((m = re.exec(s))) map.set(Number(m[1]), m[0]);
     return map;
   }
+  // Every downloadable artifact URL in the output (structures, affinity JSON,
+  // PAE/PDE matrices, pLDDT arrays, …) — limited to hosts the proxy will fetch.
+  function extractAllUrls(output) {
+    const s = JSON.stringify(output);
+    const re = /https?:\/\/[^"\s\\]+/g;
+    const urls = new Set(); let m;
+    while ((m = re.exec(s))) {
+      const u = m[0].replace(/[",}\]>)]+$/, "");
+      try { const h = new URL(u).hostname;
+        if (/\.amazonaws\.com$/.test(h) || /(^|\.)boltz\.bio$/.test(h)) urls.add(u);
+      } catch {}
+    }
+    return [...urls];
+  }
+  function urlFilename(u) {
+    try { const n = decodeURIComponent((new URL(u).pathname.split("/").pop()) || "");
+      return (n.replace(/[^A-Za-z0-9._-]/g, "_")) || "artifact"; } catch { return "artifact"; }
+  }
+  // Affinity values may be inlined in the output JSON (or only in a downloaded
+  // affinity_output.json). Surface them in the README when present inline.
+  function findAffinity(out) {
+    const want = ["affinity_pred_value", "affinity_probability_binary",
+                  "affinity_pred_value1", "affinity_pred_value2",
+                  "affinity_probability_binary1", "affinity_probability_binary2"];
+    const found = {};
+    (function walk(o) {
+      if (!o || typeof o !== "object") return;
+      for (const k in o) {
+        if (want.includes(k) && o[k] != null && typeof o[k] !== "object" && found[k] == null) found[k] = o[k];
+        walk(o[k]);
+      }
+    })(out);
+    return found;
+  }
   // ── BoltzYML branding / citation, stamped into every download ──────────
   const BRAND_URL = "https://github.com/Ayushmania2002/boltzyml";
   const ZENODO = "https://doi.org/10.5281/zenodo.20397272";
@@ -826,10 +860,29 @@
     L.push("Samples:        " + nSamples, "");
     L.push("FILES IN THIS ARCHIVE");
     L.push("-".repeat(64));
-    L.push("  *_sample<N>.cif   Predicted 3D structures, one per diffusion sample.");
-    L.push("  metrics.json      Confidence metrics for the best and all samples.");
-    L.push("  <job>_best.cif    (downloaded separately) The highest-ipTM sample.");
-    L.push("  README.txt        This file.", "");
+    L.push("  *_sample<N>.cif    Predicted 3D structures, one per diffusion sample.");
+    L.push("  boltz_output.json  COMPLETE raw server output — nothing dropped.");
+    L.push("  metrics.json       Curated confidence + affinity (subset of the raw output).");
+    L.push("  artifacts/         Every other file Boltz returned (affinity_output.json,");
+    L.push("                     PAE/PDE matrices, pLDDT arrays, confidence files, …).");
+    L.push("  <job>_best.cif     (downloaded separately) The highest-ipTM sample.");
+    L.push("  README.txt         This file.", "");
+    const aff = findAffinity(out);
+    if (Object.keys(aff).length) {
+      L.push("BINDING AFFINITY  (Boltz-2 affinity model)");
+      L.push("-".repeat(64));
+      if (aff.affinity_probability_binary != null)
+        L.push("  affinity_probability_binary .. " + f(aff.affinity_probability_binary) + "   (P(binder); 0–1, higher = more likely a binder)");
+      if (aff.affinity_pred_value != null)
+        L.push("  affinity_pred_value .......... " + f(aff.affinity_pred_value) + "   (predicted log10(IC50 in µM); LOWER = stronger binding)");
+      if (aff.affinity_pred_value1 != null) L.push("  affinity_pred_value (model 1)  " + f(aff.affinity_pred_value1));
+      if (aff.affinity_pred_value2 != null) L.push("  affinity_pred_value (model 2)  " + f(aff.affinity_pred_value2));
+      L.push("  (Full affinity output, including any replicates, is in boltz_output.json / artifacts/.)");
+      L.push("");
+    } else {
+      L.push("  Note: affinity values (if predicted) are in boltz_output.json and artifacts/affinity_output.json.");
+      L.push("");
+    }
     L.push("BEST-SAMPLE CONFIDENCE");
     L.push("-".repeat(64));
     L.push("  ipTM (interface pTM) ......... " + f(bm.iptm));
@@ -848,6 +901,8 @@
     L.push("  ligand ipTM  Confidence specifically in the ligand's binding pose (>0.5 reliable).");
     L.push("  pLDDT  Per-atom local confidence, averaged (>0.7 = well-resolved; lower = flexible).");
     L.push("  ipLDDT Same idea, restricted to interface atoms.");
+    L.push("  affinity_probability_binary  P(the ligand binds), 0–1 — use to separate binders from decoys.");
+    L.push("  affinity_pred_value          log10(IC50 µM): LOWER = tighter binding — use for ranking/SAR.");
     L.push("");
     L.push("  Tip: samples are ranked by ipTM in metrics.json; <job>_best.cif is the top one.");
     L.push("       Open .cif files in PyMOL, ChimeraX, or Mol* to inspect the structure.");
@@ -880,21 +935,39 @@
       const header = cifHeader(job);
       const files = [];
       const nums = [...urlMap.keys()].sort((a, b) => a - b);
+      const structureUrls = new Set();
       for (const n of nums) {
         const u = urlMap.get(n);
+        structureUrls.add(u);
         const resp = await fetch(proxy() + "/fetch?url=" + encodeURIComponent(u));
         if (!resp.ok) throw new Error("fetch sample " + n + " failed");
         const txt = await resp.text();
         files.push({ name: `${job.name}_sample${n}.cif`, data: enc.encode(header + txt) });
       }
-      // metrics.json — with BoltzYML provenance/citation block
+      // Every OTHER artifact Boltz returns (affinity_output.json, PAE/PDE,
+      // pLDDT arrays, confidence files, …) — downloaded raw into artifacts/.
+      const failed = [];
+      for (const u of extractAllUrls(out)) {
+        if (structureUrls.has(u)) continue;
+        try {
+          const resp = await fetch(proxy() + "/fetch?url=" + encodeURIComponent(u));
+          if (!resp.ok) { failed.push(urlFilename(u)); continue; }
+          const buf = new Uint8Array(await resp.arrayBuffer());
+          files.push({ name: "artifacts/" + urlFilename(u), data: buf });
+        } catch { failed.push(urlFilename(u)); }
+      }
+      // boltz_output.json — the COMPLETE raw server output, nothing dropped.
+      files.push({ name: "boltz_output.json", data: enc.encode(JSON.stringify(out, null, 2)) });
+      // metrics.json — curated, with BoltzYML provenance/citation block
       const metrics = {
         _boltzyml: {
           tool: "BoltzYML v2.0", author: "Ayushman Mallick", url: BRAND_URL,
           job: job.name, prediction_id: job.id, generated: new Date().toISOString(),
+          note: "Curated view. boltz_output.json holds the complete raw server output.",
           cite: ["Mallick, A. BoltzYML. Zenodo (2026). " + ZENODO,
                  "Wohlwend et al. Boltz-2 (2024). https://github.com/jwohlwend/boltz"]
         },
+        affinity: findAffinity(out),
         best_sample: { metrics: out.best_sample ? out.best_sample.metrics : null },
         all_sample_results: (out.all_sample_results || []).map(s => ({ metrics: s.metrics }))
       };
@@ -914,8 +987,9 @@
         triggerDownload(new Blob([header + bt], { type: "chemical/x-cif" }), job.name + "_best.cif");
       }
       job.metrics = out.best_sample ? out.best_sample.metrics : job.metrics;
-      job.note = "Downloaded " + nums.length + " samples + metrics.json + README + best structure (ipTM " + fmtNum(best) + ").";
-      job.noteKind = "ok"; saveJobs(); renderJobs();
+      job.note = "Downloaded " + nums.length + " structures + all artifacts + boltz_output.json + metrics.json + README + best (ipTM " + fmtNum(best) + ")."
+        + (failed.length ? " ⚠ " + failed.length + " artifact(s) could not be fetched: " + failed.join(", ") + "." : "");
+      job.noteKind = failed.length ? "warn" : "ok"; saveJobs(); renderJobs();
     } catch (e) { job.note = "Download error: " + e.message; job.noteKind = "err"; renderJobs(); }
   }
 
