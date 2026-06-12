@@ -176,7 +176,7 @@ export default {
 
       // ── Health check ────────────────────────────────────────────────────
       if (path === "/" || path === "/health") {
-        return json({ ok: true, service: "boltzyml-proxy", templateStore: !!env.TEMPLATE_DO, counter: !!env.COUNTER });
+        return json({ ok: true, service: "boltzyml-proxy", store: env.TEMPLATE_DO ? "durable-object" : (env.TEMPLATES ? "kv" : "none"), templateStore: !!env.TEMPLATE_DO, counter: !!env.COUNTER });
       }
 
       return json({ error: "Not found: " + path }, 404);
