@@ -237,6 +237,10 @@ Sanity checks:
 
 > **`v2.html`** — the second, broader tool. Live at **<https://ayushmania2002.github.io/boltzyml/v2.html>**.
 
+<p align="center">
+  <img src="boltzyml_v2_workflow.png" alt="BoltzYML v2.0 workflow: define a complex and clean templates in the browser, submit through a stateless Cloudflare Worker proxy to the Boltz-2 API, then download the complete results." width="100%">
+</p>
+
 Where v1 emits local-CLI YAML, **v2.0 targets the hosted [Boltz-2 API](https://boltz.bio)**. It builds the
 API payload (`entities` / `templates` / `binding` / `model_options`), repairs your template CIFs in the
 browser, and submits jobs with **your own API key**. It is **not** limited to ternary complexes — define

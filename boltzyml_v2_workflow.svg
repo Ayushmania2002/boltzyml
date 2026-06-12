@@ -1,0 +1,158 @@
+<svg viewBox="0 0 1280 850" xmlns="http://www.w3.org/2000/svg" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+<defs>
+  <marker id="arr" markerWidth="11" markerHeight="11" refX="8" refY="4" orient="auto">
+    <path d="M0,0 L8,4 L0,8 Z" fill="#4b5563"/>
+  </marker>
+  <marker id="arrG" markerWidth="11" markerHeight="11" refX="8" refY="4" orient="auto">
+    <path d="M0,0 L8,4 L0,8 Z" fill="#0e9f6e"/>
+  </marker>
+  <style>
+    .h1{font-size:36px;font-weight:800}
+    .sub{font-size:14px;fill:#6b7585}
+    .lane{font-size:14.5px;font-weight:700;fill:#ffffff;letter-spacing:.4px}
+    .ct{font-size:15px;font-weight:700;fill:#11151c}
+    .cb{font-size:12.3px;fill:#3a4452}
+    .cs{font-size:11.4px;fill:#6b7585}
+    .lab{font-size:12px;font-weight:600;fill:#4b5563}
+    .chip{font-size:12px;font-weight:600;fill:#1d4ed8}
+    .mono{font-family:'SFMono-Regular',Consolas,monospace}
+  </style>
+</defs>
+
+<rect width="1280" height="850" fill="#ffffff"/>
+
+<!-- molecule glyph -->
+<g transform="translate(44,40)">
+  <line x1="6" y1="16" x2="26" y2="6" stroke="#1a9bd7" stroke-width="3"/>
+  <line x1="26" y1="6" x2="44" y2="18" stroke="#1a9bd7" stroke-width="3"/>
+  <line x1="44" y1="18" x2="34" y2="34" stroke="#3bb54a" stroke-width="3"/>
+  <line x1="34" y1="34" x2="14" y2="32" stroke="#3bb54a" stroke-width="3"/>
+  <line x1="14" y1="32" x2="6" y2="16" stroke="#1a9bd7" stroke-width="3"/>
+  <circle cx="6" cy="16" r="6" fill="#1a9bd7"/><circle cx="26" cy="6" r="6" fill="#1a9bd7"/>
+  <circle cx="44" cy="18" r="6" fill="#1a9bd7"/><circle cx="34" cy="34" r="6" fill="#3bb54a"/>
+  <circle cx="14" cy="32" r="6" fill="#3bb54a"/>
+</g>
+<text x="108" y="62" class="h1"><tspan fill="#11151c">Boltz</tspan><tspan fill="#e2231a">YML</tspan></text>
+<rect x="300" y="36" width="62" height="30" rx="7" fill="#2563eb"/>
+<text x="331" y="57" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">v2.0</text>
+<text x="44" y="92" class="sub">Zero-install pipeline — clean &#8594; build &#8594; submit &#8594; fetch, using your own Boltz-2 API key. All parsing runs in your browser.</text>
+
+<!-- ===================== LANE HEADERS ===================== -->
+<rect x="40"  y="116" width="368" height="38" rx="9" fill="#2563eb"/>
+<text x="60"  y="141" class="lane">1 · IN YOUR BROWSER — client-side</text>
+<rect x="456" y="116" width="368" height="38" rx="9" fill="#b45309"/>
+<text x="476" y="141" class="lane">2 · CLOUDFLARE WORKER — stateless proxy</text>
+<rect x="872" y="116" width="368" height="38" rx="9" fill="#0e9f6e"/>
+<text x="892" y="141" class="lane">3 · BOLTZ-2 API</text>
+
+<!-- lane tints -->
+<rect x="40"  y="160" width="368" height="496" rx="11" fill="#f4f7ff"/>
+<rect x="456" y="160" width="368" height="496" rx="11" fill="#fff8f0"/>
+<rect x="872" y="160" width="368" height="496" rx="11" fill="#f0fdf8"/>
+
+<!-- ===================== LANE A CARDS ===================== -->
+<!-- A1 -->
+<rect x="56" y="176" width="336" height="96" rx="10" fill="#fff" stroke="#d7dce4"/>
+<circle cx="78" cy="200" r="13" fill="#2563eb"/><text x="78" y="205" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">a</text>
+<text x="100" y="205" class="ct">Define the complex</text>
+<text x="74" y="228" class="cb">Proteins · ligands (CCD / SMILES)</text>
+<text x="74" y="246" class="cb">DNA · RNA — any N-body mix</text>
+<text x="74" y="263" class="cs">mark a ligand as binder &#8594; affinity scoring</text>
+
+<!-- A2 cleaning -->
+<rect x="56" y="284" width="336" height="196" rx="10" fill="#fff" stroke="#d7dce4"/>
+<circle cx="78" cy="308" r="13" fill="#2563eb"/><text x="78" y="313" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">b</text>
+<text x="100" y="313" class="ct">Drop template (CIF / PDB)</text>
+<rect x="72" y="328" width="304" height="142" rx="8" fill="#eef4ff" stroke="#cfdcfd"/>
+<text x="86" y="348" class="cb" font-weight="700" fill="#1d4ed8">In-browser cleaning engine</text>
+<text x="86" y="370" class="cb">&#8226; drop phantom chains <tspan class="mono" font-size="11">_struct_asym</tspan></text>
+<text x="86" y="392" class="cb">&#8226; strip waters / HETATM</text>
+<text x="86" y="414" class="cb">&#8226; repair modified residues (OCY&#8594;CYS)</text>
+<text x="86" y="436" class="cb">&#8226; remove <tspan class="mono" font-size="11">_pdbx_poly_seq_scheme</tspan></text>
+<text x="98" y="455" class="cb"><tspan class="mono" font-size="11">_struct_conn</tspan> loops</text>
+
+<!-- A3 -->
+<rect x="56" y="492" width="336" height="106" rx="10" fill="#fff" stroke="#d7dce4"/>
+<circle cx="78" cy="516" r="13" fill="#2563eb"/><text x="78" y="521" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">c</text>
+<text x="100" y="521" class="ct">Build payload + enter key</text>
+<text x="74" y="544" class="cb"><tspan class="mono" font-size="11">entities · templates · binding</tspan></text>
+<text x="74" y="562" class="cb"><tspan class="mono" font-size="11">num_samples, recycling, step_scale</tspan></text>
+<text x="74" y="582" class="cs">key kept in your browser tab only</text>
+
+<!-- privacy bracket -->
+<rect x="56" y="612" width="336" height="32" rx="8" fill="#eef9f1" stroke="#bfe6cf"/>
+<text x="224" y="632" text-anchor="middle" class="cb" fill="#0e7a52">&#128274; Raw files never leave your browser</text>
+
+<!-- ===================== LANE B CARDS ===================== -->
+<rect x="472" y="176" width="336" height="104" rx="10" fill="#fff" stroke="#d7dce4"/>
+<text x="490" y="205" class="ct">Forward submission</text>
+<text x="490" y="230" class="cb">key &#8594; <tspan class="mono" font-size="11">X-Api-Key</tspan> header to Boltz</text>
+<text x="490" y="252" class="cb" fill="#b45309" font-weight="700">never logged · never stored</text>
+<text x="490" y="271" class="cs">no API key of its own</text>
+
+<rect x="472" y="292" width="336" height="96" rx="10" fill="#fff" stroke="#d7dce4"/>
+<text x="490" y="320" class="ct">Host cleaned template</text>
+<text x="490" y="344" class="cb">Workers KV · 2-hour TTL</text>
+<text x="490" y="366" class="cb">served at <tspan class="mono" font-size="11">/t/&lt;id&gt;.cif</tspan> for Boltz</text>
+<text x="490" y="383" class="cs">auto-deletes itself</text>
+
+<rect x="472" y="400" width="336" height="96" rx="10" fill="#fff" stroke="#d7dce4"/>
+<text x="490" y="428" class="ct">Bridge &amp; proxy</text>
+<text x="490" y="452" class="cb">adds CORS the browser needs</text>
+<text x="490" y="474" class="cb">relays status polls</text>
+<text x="490" y="491" class="cs">host-allowlisted result fetch</text>
+
+<rect x="472" y="508" width="336" height="48" rx="9" fill="#fff7ed" stroke="#f3d3a8"/>
+<text x="640" y="537" text-anchor="middle" class="cb" fill="#b45309" font-weight="700">Stateless · open-source · nothing persisted</text>
+
+<!-- ===================== LANE C CARDS ===================== -->
+<rect x="888" y="176" width="336" height="108" rx="10" fill="#fff" stroke="#d7dce4"/>
+<text x="906" y="205" class="ct">Boltz-2 model runs</text>
+<text x="906" y="230" class="cb">cofolding &#8594; 3D complex</text>
+<text x="906" y="252" class="cb">+ binding affinity</text>
+<text x="906" y="272" class="cs">guided by your cleaned template</text>
+
+<rect x="888" y="296" width="336" height="150" rx="10" fill="#fff" stroke="#d7dce4"/>
+<text x="906" y="324" class="ct">Outputs per job</text>
+<text x="906" y="348" class="cb">structures — mmCIF, one per sample</text>
+<text x="906" y="372" class="cb">confidence — ipTM · pTM · pLDDT</text>
+<text x="906" y="392" class="cb" font-size="11.6">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;PAE / PDE matrices</text>
+<text x="906" y="416" class="cb">affinity — <tspan class="mono" font-size="11">prob_binary</tspan></text>
+<text x="906" y="436" class="cb" font-size="11.6">&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;<tspan class="mono" font-size="11">affinity_pred_value</tspan></text>
+
+<rect x="888" y="458" width="336" height="86" rx="10" fill="#fff" stroke="#d7dce4"/>
+<text x="906" y="486" class="ct">Poll until succeeded</text>
+<text x="906" y="510" class="cb">status checked via the proxy</text>
+<text x="906" y="530" class="cs">then results are fetched</text>
+
+<!-- ===================== INTER-LANE ARROWS ===================== -->
+<!-- A -> B -->
+<line x1="410" y1="214" x2="454" y2="214" stroke="#4b5563" stroke-width="2.4" marker-end="url(#arr)"/>
+<text x="432" y="200" text-anchor="middle" class="lab">submit</text>
+<text x="432" y="238" text-anchor="middle" class="cs">payload · key · template</text>
+<!-- B -> C -->
+<line x1="826" y1="214" x2="870" y2="214" stroke="#4b5563" stroke-width="2.4" marker-end="url(#arr)"/>
+<text x="848" y="200" text-anchor="middle" class="lab">call API</text>
+<text x="848" y="238" text-anchor="middle" class="cs">key + template URL</text>
+
+<!-- ===================== RESULTS STRIP ===================== -->
+<!-- return path C -> results -->
+<path d="M1056 544 L1056 600 L224 600 L224 670" fill="none" stroke="#0e9f6e" stroke-width="2.6" stroke-dasharray="2 0" marker-end="url(#arrG)"/>
+<text x="640" y="592" text-anchor="middle" class="lab" fill="#0e7a52">results streamed back through the proxy &#8594; downloaded in your browser</text>
+
+<rect x="40" y="676" width="1200" height="150" rx="12" fill="#eef4ff" stroke="#2563eb"/>
+<text x="64" y="708" class="ct" font-size="16">&#11015;&#65039;  DOWNLOAD — the complete server output, nothing dropped</text>
+
+<!-- file chips -->
+<g>
+  <rect x="64"  y="724" width="180" height="34" rx="8" fill="#fff" stroke="#cfdcfd"/><text x="154" y="746" text-anchor="middle" class="chip mono" font-size="11.5">*_sampleN.cif</text>
+  <rect x="256" y="724" width="190" height="34" rx="8" fill="#fff" stroke="#cfdcfd"/><text x="351" y="746" text-anchor="middle" class="chip mono" font-size="11.5">boltz_output.json</text>
+  <rect x="458" y="724" width="150" height="34" rx="8" fill="#fff" stroke="#cfdcfd"/><text x="533" y="746" text-anchor="middle" class="chip mono" font-size="11.5">metrics.json</text>
+  <rect x="620" y="724" width="120" height="34" rx="8" fill="#fff" stroke="#cfdcfd"/><text x="680" y="746" text-anchor="middle" class="chip mono" font-size="11.5">README.txt</text>
+  <rect x="752" y="724" width="118" height="34" rx="8" fill="#fff" stroke="#cfdcfd"/><text x="811" y="746" text-anchor="middle" class="chip mono" font-size="11.5">best.cif</text>
+  <rect x="882" y="724" width="330" height="34" rx="8" fill="#fff" stroke="#cfdcfd"/><text x="1047" y="746" text-anchor="middle" class="chip mono" font-size="11.5">artifacts/ — affinity_output.json · PAE/PDE · pLDDT</text>
+</g>
+<text x="64" y="788" class="cs">Every CIF carries a BoltzYML provenance header · README.txt includes citations + a how-to-interpret guide.</text>
+<text x="64" y="810" class="cs">Web app: ayushmania2002.github.io/boltzyml/v2.html  ·  Open-source (MIT): github.com/Ayushmania2002/boltzyml</text>
+
+</svg>
