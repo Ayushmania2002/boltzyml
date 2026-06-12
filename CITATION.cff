@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "BoltzYML: a preprocessing-file generator for Boltz-2 ternary (Protein 1 + Ligand + Protein 2) binding prediction"
+title: "BoltzYML: input preparation and hosted-API submission tools for Boltz-2 structure and binding prediction"
 message: "If you use this software, please cite it using the metadata in this file."
 type: software
 authors:
@@ -7,8 +7,8 @@ authors:
     given-names: Ayushman
     email: ayushmania2002@gmail.com
     affiliation: "ICAR-IARI, New Delhi"
-version: 1.0.1
-date-released: "2026-05-26"
+version: 2.0.0
+date-released: "2026-06-12"
 license: MIT
 doi: 10.5281/zenodo.20397272
 url: "https://github.com/Ayushmania2002/boltzyml"
@@ -18,8 +18,11 @@ identifiers:
     value: 10.5281/zenodo.20397272
     description: "Concept DOI - always resolves to the latest release"
   - type: doi
-    value: 10.5281/zenodo.20397273
-    description: "Version DOI for v0.1.1"
+    value: 10.5281/zenodo.20440141
+    description: "Version DOI for v2.0"
+  - type: doi
+    value: 10.5281/zenodo.20399843
+    description: "Version DOI for v1"
 keywords:
   - boltz-2
   - structural-biology
@@ -31,11 +34,14 @@ keywords:
   - yaml
   - aba-signaling
 abstract: >
-  BoltzYML is a preprocessing-file generator that turns two CIF inputs
-  (a Protein 1 + Ligand docked structure and a Protein 1 + Protein 2
-  reference structure) into a ready-to-run Boltz-2 v1 YAML for ternary
-  binding prediction. It runs entirely in the browser via a static web
-  app and is also installable as a Python CLI (`pip install boltzyml`).
+  BoltzYML provides open-source tools for preparing and submitting Boltz-2
+  structure and binding predictions. v1 turns CIF inputs into ready-to-run
+  Boltz-2 YAML for ternary (Protein 1 + Ligand + Protein 2) binding, in the
+  browser or as a Python CLI (`pip install boltzyml`). v2.0 is a zero-install
+  web application that builds payloads for arbitrary N-body complexes, repairs
+  template CIFs in the browser, and submits jobs to the hosted Boltz-2 API with
+  the user's own key, retrieving structures, confidence, and binding-affinity
+  outputs.
 references:
   - type: software
     title: "Boltz-2: Towards Accurate and Efficient Binding Affinity Prediction"

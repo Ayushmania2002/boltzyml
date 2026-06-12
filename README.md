@@ -401,18 +401,20 @@ If you use BoltzYML in published or shared work, please cite **both** of the fol
 
 **1. BoltzYML** (this tool):
 
-> Mallick, A. *BoltzYML: a preprocessing-file generator for Boltz-2 ternary (Protein 1 + Ligand + Protein 2) binding prediction.* Zenodo (2026). <https://doi.org/10.5281/zenodo.20397272>
+> Mallick, A. *BoltzYML: input preparation and hosted-API submission tools for Boltz-2 structure and binding prediction.* Zenodo (2026). Concept DOI (always latest): <https://doi.org/10.5281/zenodo.20397272> · v2.0: <https://doi.org/10.5281/zenodo.20440141>
+
+The **concept DOI** above always resolves to the newest release; cite a **version DOI** if you need to pin the exact version you used (v1: `10.5281/zenodo.20399843` · v2.0: `10.5281/zenodo.20440141`).
 
 BibTeX:
 
 ```bibtex
 @software{boltzyml_2026,
   author    = {Mallick, Ayushman},
-  title     = {{BoltzYML}: a preprocessing-file generator for Boltz-2 ternary
-               (Protein 1 + Ligand + Protein 2) binding prediction},
+  title     = {{BoltzYML}: input preparation and hosted-API submission
+               tools for Boltz-2 structure and binding prediction},
   year      = {2026},
   publisher = {Zenodo},
-  version   = {1.0.0},
+  version   = {2.0.0},
   doi       = {10.5281/zenodo.20397272},
   url       = {https://doi.org/10.5281/zenodo.20397272}
 }
