@@ -354,25 +354,25 @@
     if (/_atom_site\.(group_PDB|label_asym_id|label_comp_id)/.test(text)) return false; // already mmCIF
     return /^(ATOM  |HETATM)/m.test(text);
   }
-  // Convert a legacy PDB file into a minimal, gemmi-/Boltz-friendly mmCIF so the
-  // same cleaning pipeline can handle it. Parses fixed-column ATOM/HETATM records,
-  // keeps one alt-conformer, and emits an _atom_site loop + a _struct_asym loop.
+  // Convert a legacy PDB file into a Boltz-friendly mmCIF so the same cleaning
+  // pipeline can handle it. Parses fixed-column ATOM records (polymer only —
+  // HETATM ligands/waters are dropped, they are not wanted in a template), keeps
+  // one alt-conformer, and emits the polymer metadata Boltz's template validator
+  // requires (_entity / _entity_poly / _entity_poly_seq), one entity per chain.
   const ATOM_COLS = ["group_PDB", "id", "type_symbol", "label_atom_id", "label_alt_id",
     "label_comp_id", "label_asym_id", "label_entity_id", "label_seq_id", "pdbx_PDB_ins_code",
     "Cartn_x", "Cartn_y", "Cartn_z", "occupancy", "B_iso_or_equiv",
     "auth_seq_id", "auth_comp_id", "auth_asym_id", "auth_atom_id", "pdbx_PDB_model_num"];
   function pdbToCif(text) {
-    const rows = [], seqId = new Map(), lastRes = new Map();
+    const rows = [], seqId = new Map(), lastRes = new Map(), seqList = new Map();
     let id = 0;
     for (const ln of text.split(/\r?\n/)) {
-      const rec = ln.slice(0, 6);
-      if (rec !== "ATOM  " && rec !== "HETATM") continue;
+      if (ln.slice(0, 6) !== "ATOM  ") continue;               // polymer atoms only
       const alt = ln.slice(16, 17).trim();
-      if (alt && alt !== "A") continue;                       // keep one conformer
-      const group = rec.trim();
+      if (alt && alt !== "A") continue;                        // keep one conformer
       const atom = ln.slice(12, 16).trim() || ".";
       const comp = ln.slice(17, 20).trim() || "UNK";
-      const chain = (ln.slice(20, 22).trim() || "A");          // chain ID (cols 21-22)
+      const chain = ln.slice(20, 22).trim() || "A";            // chain ID (cols 21-22)
       const resSeq = ln.slice(22, 26).trim() || "1";
       const iCode = ln.slice(26, 27).trim();
       const x = ln.slice(30, 38).trim(), y = ln.slice(38, 46).trim(), z = ln.slice(46, 54).trim();
@@ -381,22 +381,31 @@
       const bf = ln.slice(60, 66).trim() || "0.00";
       let elem = ln.slice(76, 78).trim();
       if (!elem) elem = (atom.replace(/[^A-Za-z]/g, "")[0] || "C").toUpperCase();
-      let lseq = ".";
-      if (group === "ATOM") {                                  // sequential label_seq_id per chain
-        const key = chain + "|" + resSeq + "|" + iCode;
-        if (lastRes.get(chain) !== key) { seqId.set(chain, (seqId.get(chain) || 0) + 1); lastRes.set(chain, key); }
-        lseq = String(seqId.get(chain));
+      const key = chain + "|" + resSeq + "|" + iCode;
+      if (lastRes.get(chain) !== key) {                        // new residue → bump label_seq_id
+        seqId.set(chain, (seqId.get(chain) || 0) + 1);
+        lastRes.set(chain, key);
+        if (!seqList.has(chain)) seqList.set(chain, []);
+        seqList.get(chain).push(comp);
       }
-      rows.push([group, ++id, elem, atom, ".", comp, chain, "1", lseq, iCode || "?",
-        x, y, z, occ, bf, resSeq, comp, chain, atom, "1"].join(" "));
+      rows.push({ id: ++id, elem, atom, comp, chain, lseq: seqId.get(chain), ins: iCode || "?", x, y, z, occ, bf, resSeq });
     }
-    if (!rows.length) throw new Error("No ATOM/HETATM records found in the PDB file.");
-    const chains = [...new Set(rows.map(r => r.split(" ")[6]))];
-    const out = ["data_converted", "#", "loop_", "_struct_asym.id", "_struct_asym.entity_id"];
-    for (const c of chains) out.push(c + " 1");
+    if (!rows.length) throw new Error("No ATOM (polymer) records found in the PDB file.");
+    const chains = [...seqList.keys()];
+    const ent = new Map(); chains.forEach((c, i) => ent.set(c, i + 1));   // one entity per chain
+    const one3 = c3 => AA3_TO_1[c3] || (MOD_PARENT[c3] ? AA3_TO_1[MOD_PARENT[c3]] : "X");
+    const out = ["data_converted", "#"];
+    out.push("loop_", "_entity.id", "_entity.type");
+    for (const c of chains) out.push(ent.get(c) + " polymer");
+    out.push("#", "loop_", "_entity_poly.entity_id", "_entity_poly.type", "_entity_poly.pdbx_seq_one_letter_code_can");
+    for (const c of chains) { out.push(ent.get(c) + " polypeptide(L)"); out.push(";" + seqList.get(c).map(one3).join("")); out.push(";"); }
+    out.push("#", "loop_", "_entity_poly_seq.entity_id", "_entity_poly_seq.num", "_entity_poly_seq.mon_id", "_entity_poly_seq.hetero");
+    for (const c of chains) { const L = seqList.get(c); for (let i = 0; i < L.length; i++) out.push(ent.get(c) + " " + (i + 1) + " " + L[i] + " n"); }
+    out.push("#", "loop_", "_struct_asym.id", "_struct_asym.entity_id");
+    for (const c of chains) out.push(c + " " + ent.get(c));
     out.push("#", "loop_");
     for (const col of ATOM_COLS) out.push("_atom_site." + col);
-    for (const r of rows) out.push(r);
+    for (const r of rows) out.push(["ATOM", r.id, r.elem, r.atom, ".", r.comp, r.chain, ent.get(r.chain), r.lseq, r.ins, r.x, r.y, r.z, r.occ, r.bf, r.resSeq, r.comp, r.chain, r.atom, "1"].join(" "));
     out.push("#");
     return out.join("\n");
   }
@@ -688,11 +697,15 @@
     const binder = entities.find(e => e.binder && (e.kind === "ligand_ccd" || e.kind === "ligand_smiles"));
     if (binder) input.binding = { type: "ligand_protein_binding", binder_chain_id: binder.chain };
 
-    const tmpl = [];
+    const tmpl = [], usedChains = new Set(), dupChains = [];
     for (const tpl of templates) {
       if (!tpl.analysis) continue;
       for (const m of tpl.mappings) {
         if (!m.chain_id) continue;
+        // Boltz allows only ONE template per prediction chain. Keep the first
+        // mapping for a chain; skip later duplicates (and report them).
+        if (usedChains.has(m.chain_id)) { dupChains.push(m.chain_id); continue; }
+        usedChains.add(m.chain_id);
         tmpl.push({ _tpl: tpl, format: "cif", source: { type: "url", url: tpl.hostedUrl || "<uploaded-on-submit>" }, chain_id: m.chain_id, template_id: m.template_id });
       }
     }
@@ -705,7 +718,7 @@
       sampling_steps: clampInt($("#samplingSteps").value, 10, 500, 200),
       step_scale: parseFloat($("#stepScale").value) || 1.638
     };
-    return { input, templatesUsed: tmpl };
+    return { input, templatesUsed: tmpl, dupChains };
   }
   function clampInt(v, lo, hi, dflt) { const n = parseInt(v, 10); return Number.isNaN(n) ? dflt : Math.min(hi, Math.max(lo, n)); }
 
@@ -746,10 +759,11 @@
   let fmt = "yaml", lastInput = null;
   function rebuild() {
     try {
-      const { input } = buildInput();
+      const { input, dupChains } = buildInput();
       lastInput = input;
       $("#payloadOut").value = fmt === "yaml" ? toYaml(input) : JSON.stringify(input, null, 2);
-      setBuildStatus("ok", "Payload ready · " + input.entities.length + " entities" + (input.templates ? ", " + input.templates.length + " template mapping(s)" : "") + ".");
+      const dupNote = dupChains.length ? " ⚠ dropped duplicate template mapping(s) for chain " + [...new Set(dupChains)].join(", ") + " (Boltz allows one template per chain)." : "";
+      setBuildStatus(dupChains.length ? "warn" : "ok", "Payload ready · " + input.entities.length + " entities" + (input.templates ? ", " + input.templates.length + " template mapping(s)" : "") + "." + dupNote);
       $("#submitBtn").disabled = false;
     } catch (e) {
       lastInput = null;
