@@ -213,7 +213,7 @@
     <h2><span class="step">1</span> Sampling options</h2>
     <div class="row c4">
       <label class="field"><span>num_samples</span><input type="number" id="numSamples" value="5" min="1" max="25"></label>
-      <label class="field"><span>recycling_steps</span><input type="number" id="recyclingSteps" value="10" min="1" max="20"></label>
+      <label class="field"><span>recycling_steps <span style="color:var(--muted)">(1–10)</span></span><input type="number" id="recyclingSteps" value="3" min="1" max="10"></label>
       <label class="field"><span>sampling_steps</span><input type="number" id="samplingSteps" value="200" min="10" max="500"></label>
       <label class="field"><span>step_scale</span><input type="number" id="stepScale" value="1.638" step="0.001" min="0.1" max="5"></label>
     </div>
@@ -347,6 +347,58 @@
       else if (n > 0) break;
     }
     return cols;
+  }
+
+  // Detect a legacy PDB file (fixed-column ATOM/HETATM, no mmCIF _atom_site loop).
+  function looksLikePdb(text) {
+    if (/_atom_site\.(group_PDB|label_asym_id|label_comp_id)/.test(text)) return false; // already mmCIF
+    return /^(ATOM  |HETATM)/m.test(text);
+  }
+  // Convert a legacy PDB file into a minimal, gemmi-/Boltz-friendly mmCIF so the
+  // same cleaning pipeline can handle it. Parses fixed-column ATOM/HETATM records,
+  // keeps one alt-conformer, and emits an _atom_site loop + a _struct_asym loop.
+  const ATOM_COLS = ["group_PDB", "id", "type_symbol", "label_atom_id", "label_alt_id",
+    "label_comp_id", "label_asym_id", "label_entity_id", "label_seq_id", "pdbx_PDB_ins_code",
+    "Cartn_x", "Cartn_y", "Cartn_z", "occupancy", "B_iso_or_equiv",
+    "auth_seq_id", "auth_comp_id", "auth_asym_id", "auth_atom_id", "pdbx_PDB_model_num"];
+  function pdbToCif(text) {
+    const rows = [], seqId = new Map(), lastRes = new Map();
+    let id = 0;
+    for (const ln of text.split(/\r?\n/)) {
+      const rec = ln.slice(0, 6);
+      if (rec !== "ATOM  " && rec !== "HETATM") continue;
+      const alt = ln.slice(16, 17).trim();
+      if (alt && alt !== "A") continue;                       // keep one conformer
+      const group = rec.trim();
+      const atom = ln.slice(12, 16).trim() || ".";
+      const comp = ln.slice(17, 20).trim() || "UNK";
+      const chain = (ln.slice(20, 22).trim() || "A");          // chain ID (cols 21-22)
+      const resSeq = ln.slice(22, 26).trim() || "1";
+      const iCode = ln.slice(26, 27).trim();
+      const x = ln.slice(30, 38).trim(), y = ln.slice(38, 46).trim(), z = ln.slice(46, 54).trim();
+      if (!x || !y || !z) continue;
+      const occ = ln.slice(54, 60).trim() || "1.00";
+      const bf = ln.slice(60, 66).trim() || "0.00";
+      let elem = ln.slice(76, 78).trim();
+      if (!elem) elem = (atom.replace(/[^A-Za-z]/g, "")[0] || "C").toUpperCase();
+      let lseq = ".";
+      if (group === "ATOM") {                                  // sequential label_seq_id per chain
+        const key = chain + "|" + resSeq + "|" + iCode;
+        if (lastRes.get(chain) !== key) { seqId.set(chain, (seqId.get(chain) || 0) + 1); lastRes.set(chain, key); }
+        lseq = String(seqId.get(chain));
+      }
+      rows.push([group, ++id, elem, atom, ".", comp, chain, "1", lseq, iCode || "?",
+        x, y, z, occ, bf, resSeq, comp, chain, atom, "1"].join(" "));
+    }
+    if (!rows.length) throw new Error("No ATOM/HETATM records found in the PDB file.");
+    const chains = [...new Set(rows.map(r => r.split(" ")[6]))];
+    const out = ["data_converted", "#", "loop_", "_struct_asym.id", "_struct_asym.entity_id"];
+    for (const c of chains) out.push(c + " 1");
+    out.push("#", "loop_");
+    for (const col of ATOM_COLS) out.push("_atom_site." + col);
+    for (const r of rows) out.push(r);
+    out.push("#");
+    return out.join("\n");
   }
 
   // Inspect a CIF: which chains carry coordinates, which are phantom, what
@@ -524,6 +576,7 @@
     try {
       tpl.fileName = file.name;
       tpl.raw = await file.text();
+      if (looksLikePdb(tpl.raw)) tpl.raw = pdbToCif(tpl.raw);   // legacy PDB → mmCIF
       tpl.analysis = analyzeCif(tpl.raw);
       tpl.keep = new Set(tpl.analysis.atomChains);           // default: coordinate chains only
       tpl.resMap = {};
@@ -648,7 +701,7 @@
 
     input.num_samples = clampInt($("#numSamples").value, 1, 25, 5);
     input.model_options = {
-      recycling_steps: clampInt($("#recyclingSteps").value, 1, 20, 10),
+      recycling_steps: clampInt($("#recyclingSteps").value, 1, 10, 3),
       sampling_steps: clampInt($("#samplingSteps").value, 10, 500, 200),
       step_scale: parseFloat($("#stepScale").value) || 1.638
     };
@@ -1060,6 +1113,22 @@
       setSubmitStatus(j.ok ? "ok" : "warn", "Service online" + (j.templateStore ? " · templates supported" : " · templates unavailable") + "."); }
     catch (e) { setSubmitStatus("err", "Service unreachable right now: " + e.message); }
   });
+
+  // sampling inputs: clamp the field to its allowed range on change (so what
+  // you see is exactly what's submitted — no silent capping), then rebuild.
+  [["numSamples", 1, 25], ["recyclingSteps", 1, 10], ["samplingSteps", 10, 500]].forEach(([id, lo, hi]) => {
+    const inp = $("#" + id);
+    inp.addEventListener("change", () => {
+      const n = parseInt(inp.value, 10);
+      if (Number.isNaN(n)) return;
+      const c = Math.min(hi, Math.max(lo, n));
+      const clamped = c !== n;
+      if (clamped) inp.value = c;
+      rebuild();
+      if (clamped) setBuildStatus("warn", id + " must be " + lo + "–" + hi + "; set to " + c + ".");
+    });
+  });
+  $("#stepScale").addEventListener("change", rebuild);
 
   // settings persistence (API key in sessionStorage only, if opted in)
   if (sessionStorage.getItem("boltzyml_key")) { $("#apiKey").value = sessionStorage.getItem("boltzyml_key"); $("#rememberKey").checked = true; }

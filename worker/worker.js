@@ -104,32 +104,32 @@ export default {
       }
 
       // ── Host a cleaned CIF template (so Boltz can fetch it by URL) ───────
+      //   Stored in a per-id Durable Object (NOT KV): a DO is strongly
+      //   consistent, so the template is readable the instant it is written —
+      //   even when the upload (e.g. from Asia) and Boltz's fetch (e.g. from a
+      //   US region) hit different edges. KV is eventually consistent and would
+      //   404 in that cross-region window.
       if (path === "/template" && request.method === "POST") {
-        if (!env.TEMPLATES) {
-          return json(
-            { error: "No template store bound. Add a KV namespace binding TEMPLATES (see worker/README.md)." },
-            501
-          );
-        }
+        if (!env.TEMPLATE_DO) return json({ error: "No template store bound. Add a Durable Object binding TEMPLATE_DO (see worker/README.md)." }, 501);
         const cif = await request.text();
         if (!cif || cif.length < 10) return json({ error: "Empty template body." }, 400);
         if (cif.length > 8 * 1024 * 1024) return json({ error: "Template too large (>8 MB)." }, 413);
         const id = randId();
-        // 2-hour TTL: a template is only needed briefly, between submission and
-        // the Boltz API fetching it — KV then auto-deletes it.
-        await env.TEMPLATES.put("tpl/" + id, cif, { expirationTtl: 7200 });
+        const stub = env.TEMPLATE_DO.get(env.TEMPLATE_DO.idFromName(id));
+        await stub.fetch("https://do/put", { method: "POST", body: cif });
         // URL must end in .cif so the Boltz API can infer the template format.
-        const served = `${url.origin}/t/${id}.cif`;
-        return json({ url: served, id });
+        return json({ url: `${url.origin}/t/${id}.cif`, id });
       }
 
       // ── Serve a stored template (public; this is what Boltz GETs) ────────
       if (path.startsWith("/t/") && request.method === "GET") {
-        if (!env.TEMPLATES) return json({ error: "No template store bound." }, 501);
+        if (!env.TEMPLATE_DO) return json({ error: "No template store bound." }, 501);
         const id = path.slice(3).replace(/\.cif$/, "");
         if (!/^[a-z0-9]+$/.test(id)) return json({ error: "Bad template id." }, 400);
-        const cif = await env.TEMPLATES.get("tpl/" + id);
-        if (cif == null) return json({ error: "Template not found or expired." }, 404);
+        const stub = env.TEMPLATE_DO.get(env.TEMPLATE_DO.idFromName(id));
+        const resp = await stub.fetch("https://do/get");
+        if (resp.status !== 200) return json({ error: "Template not found or expired." }, 404);
+        const cif = await resp.text();
         return new Response(cif, {
           status: 200,
           headers: {
@@ -176,7 +176,7 @@ export default {
 
       // ── Health check ────────────────────────────────────────────────────
       if (path === "/" || path === "/health") {
-        return json({ ok: true, service: "boltzyml-proxy", templateStore: !!env.TEMPLATES, counter: !!env.COUNTER });
+        return json({ ok: true, service: "boltzyml-proxy", templateStore: !!env.TEMPLATE_DO, counter: !!env.COUNTER });
       }
 
       return json({ error: "Not found: " + path }, 404);
@@ -203,5 +203,35 @@ export class Counter {
     return new Response(JSON.stringify({ page: pageCount, total }), {
       headers: { "Content-Type": "application/json", ...CORS },
     });
+  }
+}
+
+// Durable Object: a per-id template holder. Strongly consistent, so a template
+// is readable globally the instant it is written (no KV cross-region race).
+// SQLite storage holds the full CIF (no 128 KiB value cap); a 2-hour alarm
+// self-destructs the object so nothing lingers.
+export class TemplateStore {
+  constructor(state) {
+    this.state = state;
+    this.sql = state.storage.sql;
+    this.sql.exec("CREATE TABLE IF NOT EXISTS t(cif TEXT)");
+  }
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method === "POST" && url.pathname === "/put") {
+      const cif = await request.text();
+      this.sql.exec("DELETE FROM t");
+      this.sql.exec("INSERT INTO t(cif) VALUES (?)", cif);
+      await this.state.storage.setAlarm(Date.now() + 7200 * 1000); // self-destruct in 2h
+      return new Response("ok");
+    }
+    // GET /get
+    const rows = [...this.sql.exec("SELECT cif FROM t LIMIT 1")];
+    if (!rows.length) return new Response("not found", { status: 404 });
+    return new Response(rows[0].cif, { status: 200 });
+  }
+  async alarm() {
+    try { this.sql.exec("DROP TABLE IF EXISTS t"); } catch (e) {}
+    await this.state.storage.deleteAll();
   }
 }

@@ -2,24 +2,26 @@ name = "boltzyml-proxy"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 
-# Transient template hosting via Workers KV (no payment method required).
-# Create the namespace once — it prints an id:
-#   npx wrangler kv namespace create TEMPLATES
-# Paste that id below as `id = "..."`, then deploy:
+# Two Durable Objects, both free-plan compatible via the SQLite backend:
+#   COUNTER       — a single global page-visit counter.
+#   TEMPLATE_DO   — per-id template holder. Strongly consistent, so an uploaded
+#                   template is readable globally the instant it is written. KV
+#                   was eventually consistent and 404'd when the upload and
+#                   Boltz's fetch hit different regions.
+# Just deploy; the migrations create the classes automatically:
 #   npx wrangler deploy
-# Stored templates auto-expire after 2h (set in worker.js), so the namespace
-# stays empty on its own.
-[[kv_namespaces]]
-binding = "TEMPLATES"
-id = "685a101fe6a44938b8afc48c75046a7c"
-
-# Page-visit counter — a single Durable Object. Storage ops here do NOT count
-# against the KV write limit, so visit counting never starves template hosting.
-# Free-plan compatible via the SQLite backend (new_sqlite_classes migration).
 [[durable_objects.bindings]]
 name = "COUNTER"
 class_name = "Counter"
 
+[[durable_objects.bindings]]
+name = "TEMPLATE_DO"
+class_name = "TemplateStore"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Counter"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["TemplateStore"]
