@@ -459,6 +459,9 @@
         © 2026 <strong>Ayushman Mallick</strong>. Released under the
         <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>.
       </p>
+      <p id="visitCount" class="copyright" style="visibility:hidden;">
+        👁 <span id="visitNum">—</span> visits to BoltzYML
+      </p>
     </div>
     <div class="foot-links">
       <a href="https://github.com/Ayushmania2002/boltzyml" target="_blank" rel="noopener">GitHub</a>
@@ -906,6 +909,16 @@
     return `${stem(a)}__${stem(b)}`;
   }
 })();
+
+// project-wide visit counter (Durable Object on the BoltzYML proxy)
+fetch("https://boltzyml-proxy.boltzyml-ayushman.workers.dev/hit?page=v1")
+  .then(r => r.json())
+  .then(d => {
+    if (d && d.total != null) {
+      document.getElementById("visitNum").textContent = Number(d.total).toLocaleString();
+      document.getElementById("visitCount").style.visibility = "visible";
+    }
+  }).catch(() => {});
 </script>
 </body>
 </html>

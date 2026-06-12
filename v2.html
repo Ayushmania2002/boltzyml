@@ -267,6 +267,9 @@
   <p style="margin:0 0 6px;color:var(--ink-soft);">
     <strong>BoltzYML v2.0</strong> — runs in your browser; submission goes through a proxy you deploy and control.
   </p>
+  <p id="visitCount" style="margin:0 0 10px;font-size:12px;color:var(--muted);visibility:hidden;">
+    👁 <span id="visitNum">—</span> visits to BoltzYML
+  </p>
   <p style="margin:0 0 12px;">
     © 2026 <strong>Ayushman Mallick</strong>. Released under the
     <a href="https://github.com/Ayushmania2002/boltzyml/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>.
@@ -1061,6 +1064,14 @@
   loadJobs(); renderJobs();
   addEntity("protein");
   renderTemplates();
+
+  // project-wide visit counter (Durable Object on the proxy; never touches KV)
+  fetch(proxy() + "/hit?page=v2").then(r => r.json()).then(d => {
+    if (d && d.total != null) {
+      $("#visitNum").textContent = Number(d.total).toLocaleString();
+      $("#visitCount").style.visibility = "visible";
+    }
+  }).catch(() => {});
 })();
 </script>
 </body>

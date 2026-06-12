@@ -12,3 +12,14 @@ compatibility_date = "2025-01-01"
 [[kv_namespaces]]
 binding = "TEMPLATES"
 id = "685a101fe6a44938b8afc48c75046a7c"
+
+# Page-visit counter — a single Durable Object. Storage ops here do NOT count
+# against the KV write limit, so visit counting never starves template hosting.
+# Free-plan compatible via the SQLite backend (new_sqlite_classes migration).
+[[durable_objects.bindings]]
+name = "COUNTER"
+class_name = "Counter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Counter"]

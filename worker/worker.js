@@ -163,9 +163,20 @@ export default {
         });
       }
 
+      // ── Page-visit counter (Durable Object; keeps KV free for templates) ─
+      //   GET /hit?page=<v1|v2>   → increments that page + the project total,
+      //   returns { page, total }. Counts live in a Durable Object, so they
+      //   don't consume the KV write budget that template hosting needs.
+      if (path === "/hit" && request.method === "GET") {
+        if (!env.COUNTER) return json({ page: null, total: null });
+        const id = env.COUNTER.idFromName("global");
+        const page = (url.searchParams.get("page") || "all").replace(/[^a-z0-9_]/gi, "").slice(0, 16);
+        return env.COUNTER.get(id).fetch("https://do/?page=" + page);
+      }
+
       // ── Health check ────────────────────────────────────────────────────
       if (path === "/" || path === "/health") {
-        return json({ ok: true, service: "boltzyml-proxy", templateStore: !!env.TEMPLATES });
+        return json({ ok: true, service: "boltzyml-proxy", templateStore: !!env.TEMPLATES, counter: !!env.COUNTER });
       }
 
       return json({ error: "Not found: " + path }, 404);
@@ -174,3 +185,23 @@ export default {
     }
   },
 };
+
+// Durable Object: a single global visit counter. One instance ("global") holds
+// a per-page tally plus a project-wide total. Storage ops here don't count
+// against the KV write limit, so page views never starve template hosting.
+export class Counter {
+  constructor(state) { this.state = state; }
+  async fetch(request) {
+    const url = new URL(request.url);
+    const page = (url.searchParams.get("page") || "all").replace(/[^a-z0-9_]/gi, "").slice(0, 16);
+    const s = this.state.storage;
+    let total = (await s.get("total")) || 0;
+    let pageCount = (await s.get("p:" + page)) || 0;
+    total += 1; pageCount += 1;
+    await s.put("total", total);
+    await s.put("p:" + page, pageCount);
+    return new Response(JSON.stringify({ page: pageCount, total }), {
+      headers: { "Content-Type": "application/json", ...CORS },
+    });
+  }
+}
