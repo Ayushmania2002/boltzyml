@@ -309,7 +309,7 @@ files are likewise CORS-blocked. v2.0 therefore routes through a tiny stateless 
 public app uses a **hosted proxy maintained by the author** — you don't deploy anything.
 
 **Prefer to run your own proxy?** (e.g. for a lab, or to use your own free-tier quota.) Deploy the included
-Worker in a few minutes and point the app at it with `?proxy=https://your-worker.workers.dev`:
+Worker in a few minutes:
 
 ```bash
 cd worker
@@ -318,8 +318,41 @@ npx wrangler kv namespace create TEMPLATES   # prints an id → paste into wrang
 npx wrangler deploy
 ```
 
-See [`worker/README.md`](worker/README.md). Templates are stored in Workers KV with a 2-hour TTL, and no
+Then **fork the app and change the hardcoded `PROXY_URL` constant** in `v2.html` to your Worker's URL.
+(By design there is *no* runtime `?proxy=` override — see [Security](#security--anti-tampering) below.) See
+[`worker/README.md`](worker/README.md). Templates are stored in Workers KV with a 2-hour TTL, and no
 payment method is required.
+
+### Security &amp; anti-tampering
+
+Because users supply their own (paid) Boltz API key, BoltzYML v2.0 has undergone an **extensive security
+review** focused on protecting that credential. The safeguards in place:
+
+- **Key transmission.** The API key is sent **only over TLS/HTTPS**, and **only in a request header**
+  (`X-Boltz-Key`) — never in a URL, query string, or request body. This keeps it out of browser history,
+  server access logs, `Referer` headers, and analytics. It is transmitted to exactly one origin: the
+  hardcoded proxy.
+- **Key storage.** The key lives in volatile `sessionStorage` only when the user opts in, and is **cleared
+  when the tab closes**. It is never written to `localStorage` and never leaves the browser except as above.
+- **No runtime proxy override (anti-phishing).** The proxy endpoint is a **hardcoded constant** with **no
+  `?proxy=` / query-string override**. This deliberately removes a link-based **key-exfiltration / open-redirect**
+  vector (a crafted `?proxy=https://attacker.example` link cannot retarget the key).
+- **XSS / injection hardening.** All dynamic or untrusted content — Boltz API responses, error messages, and
+  any text derived from uploaded files — is rendered via **`textContent` / DOM text nodes, not `innerHTML`**,
+  neutralizing reflected, stored, and DOM-based **cross-site scripting**.
+- **Stateless, least-privilege proxy.** The Cloudflare Worker holds **no credentials of its own**, forwards
+  each key to `api.boltz.bio` exactly once, and **never logs or persists** it.
+- **SSRF / open-proxy guard.** The result-download endpoint (`/fetch`) is restricted by a **host allow-list**
+  (`*.amazonaws.com`, `*.boltz.bio`), so it cannot be abused to fetch arbitrary URLs.
+- **Client-side processing.** Template parsing and CIF cleaning run **entirely in the browser**; raw user
+  files are never uploaded for processing.
+- **Transient, isolated storage.** Cleaned templates auto-expire (2-hour KV TTL); the visit counter uses a
+  separate **Durable Object**, so it can never exhaust the KV write budget that template hosting depends on.
+- **Transport security.** Served exclusively over HTTPS (GitHub Pages + Cloudflare TLS).
+
+The proxy is **open-source** ([`worker/worker.js`](worker/worker.js)) so every one of these claims is
+independently verifiable. Found a vulnerability? Please open a
+[security issue](https://github.com/Ayushmania2002/boltzyml/issues).
 
 ### Boltz API (beta) — SDKs for advanced / programmatic use
 

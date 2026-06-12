@@ -704,16 +704,15 @@
   function setBuildStatus(kind, msg) { const s = $("#buildStatus"); s.className = "status " + kind; s.textContent = msg; s.style.display = "block"; }
 
   // ───────────────────────── submit (Stage 2) ─────────────────────────
-  function setSubmitStatus(kind, msg) { const s = $("#submitStatus"); s.className = "status " + kind; s.innerHTML = msg; s.style.display = "block"; }
+  // textContent (not innerHTML) so server/error/ID strings can never inject markup.
+  function setSubmitStatus(kind, msg) { const s = $("#submitStatus"); s.className = "status " + kind; s.textContent = msg; s.style.display = "block"; }
   // ── BoltzYML's hosted submission proxy ───────────────────────────────────
-  //  To migrate to a different Worker (e.g. when the free tier is exhausted),
-  //  change THIS ONE LINE and redeploy the page. Power users / testing can
-  //  override per-visit with ?proxy=https://my-worker.workers.dev
+  //  Hardcoded ON PURPOSE: the API key is only ever sent to this exact origin.
+  //  There is deliberately NO ?proxy= / runtime override — that would let a
+  //  crafted link (?proxy=https://evil.com) redirect a user's key to an
+  //  attacker. To use a different Worker, edit THIS line and redeploy the page.
   const PROXY_URL = "https://boltzyml-proxy.boltzyml-ayushman.workers.dev";
-  function proxy() {
-    const override = new URLSearchParams(location.search).get("proxy");
-    return (override || PROXY_URL).replace(/\/+$/, "");
-  }
+  function proxy() { return PROXY_URL; }
   function apiKey() { return $("#apiKey").value.trim(); }
 
   async function hostTemplate(cleaned) {
@@ -724,7 +723,6 @@
   }
 
   async function submit() {
-    if (!proxy()) return setSubmitStatus("err", "Enter your proxy URL first (deploy the Worker in <code>worker/</code>).");
     if (!apiKey()) return setSubmitStatus("err", "Enter your Boltz API key.");
     let built;
     try { built = buildInput(); } catch (e) { return setSubmitStatus("err", e.message); }
@@ -751,7 +749,7 @@
       const name = (entities.map(e => e.chain).join("") || "job") + "_" + j.id.slice(-6);
       jobs.unshift({ id: j.id, name, status: j.status || "pending", ts: Date.now() });
       saveJobs(); renderJobs();
-      setSubmitStatus("ok", "Submitted · <b>" + j.id + "</b> (" + (j.status || "pending") + "). Track it under Jobs &amp; results below.");
+      setSubmitStatus("ok", "Submitted · " + j.id + " (" + (j.status || "pending") + "). Track it under Jobs & results below.");
     } catch (e) {
       setSubmitStatus("err", "Submit error: " + e.message);
     } finally { $("#submitBtn").disabled = false; }
@@ -778,14 +776,16 @@
       ]);
       const card = el("div", { class: "job" }, [head]);
       if (job.metrics) {
+        const metric = (label, v) => el("span", {}, [label + " ", el("b", {}, [fmtNum(v)])]);
         card.append(el("div", { class: "metrics" }, [
-          el("span", { html: "ipTM <b>" + fmtNum(job.metrics.iptm) + "</b>" }),
-          el("span", { html: "pTM <b>" + fmtNum(job.metrics.ptm) + "</b>" }),
-          job.metrics.complex_plddt != null ? el("span", { html: "pLDDT <b>" + fmtNum(job.metrics.complex_plddt) + "</b>" }) : null,
-          job.metrics.ligand_iptm != null ? el("span", { html: "ligand-ipTM <b>" + fmtNum(job.metrics.ligand_iptm) + "</b>" }) : null
+          metric("ipTM", job.metrics.iptm),
+          metric("pTM", job.metrics.ptm),
+          job.metrics.complex_plddt != null ? metric("pLDDT", job.metrics.complex_plddt) : null,
+          job.metrics.ligand_iptm != null ? metric("ligand-ipTM", job.metrics.ligand_iptm) : null
         ]));
       }
-      if (job.note) card.append(el("div", { class: "status " + (job.noteKind || "info"), style: "margin-top:8px" }, [el("span", { html: job.note })]));
+      // text node (not html) — job.note can include API/error text echoing file content.
+      if (job.note) card.append(el("div", { class: "status " + (job.noteKind || "info"), style: "margin-top:8px" }, [el("span", {}, [job.note])]));
       root.append(card);
     }
   }
