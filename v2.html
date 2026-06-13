@@ -190,6 +190,7 @@
       <button class="ghost tiny" data-add="protein">+ Protein</button>
       <button class="ghost tiny" data-add="ligand_ccd">+ Ligand (CCD)</button>
       <button class="ghost tiny" data-add="ligand_smiles">+ Ligand (SMILES)</button>
+      <button class="ghost tiny" data-add="ligand_file">+ Ligand (file)</button>
       <button class="ghost tiny" data-add="dna">+ DNA</button>
       <button class="ghost tiny" data-add="rna">+ RNA</button>
     </div>
@@ -524,6 +525,55 @@
     return result;
   }
 
+  // ──────────── ligand structure file → SMILES (RDKit, self-hosted) ────────
+  //  RDKit's WASM (~7 MB) is loaded lazily — only the first time a user adds a
+  //  ligand file — and served from this repo, so nothing goes to a third party.
+  let _rdkitPromise = null;
+  function loadRDKit() {
+    if (_rdkitPromise) return _rdkitPromise;
+    const base = new URL("vendor/rdkit/", location.href).href;
+    _rdkitPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = base + "RDKit_minimal.js";
+      s.onload = () => window.initRDKitModule({ locateFile: f => base + f }).then(resolve).catch(reject);
+      s.onerror = () => reject(new Error("Could not load the RDKit module."));
+      document.head.appendChild(s);
+    });
+    return _rdkitPromise;
+  }
+  // Minimal mol2 → V2000 molblock (mol2 carries explicit atoms + bonds).
+  function mol2ToMolblock(text) {
+    let sec = ""; const atoms = [], bonds = [];
+    for (const ln of text.split(/\r?\n/)) {
+      if (ln.startsWith("@<TRIPOS>")) { sec = ln.trim().slice(9); continue; }
+      const t = ln.trim(); if (!t) continue;
+      if (sec === "ATOM") { const p = t.split(/\s+/);
+        atoms.push({ x: +p[2], y: +p[3], z: +p[4], el: (p[5] || "C").split(".")[0] }); }
+      else if (sec === "BOND") { const p = t.split(/\s+/);
+        const o = p[3] === "2" ? 2 : p[3] === "3" ? 3 : p[3] === "ar" ? 4 : 1;
+        bonds.push({ a: +p[1], b: +p[2], o }); }
+    }
+    if (!atoms.length) throw new Error("No atoms found in the mol2 file.");
+    const p3 = n => String(n).padStart(3);
+    const f10 = v => v.toFixed(4).padStart(10);
+    let o = "\n     RDKit          3D\n\n" + p3(atoms.length) + p3(bonds.length) + "  0  0  0  0  0  0  0  0999 V2000\n";
+    for (const a of atoms) o += f10(a.x) + f10(a.y) + f10(a.z) + " " + (a.el + "  ").slice(0, 3) + " 0  0  0  0  0  0  0  0  0  0  0  0\n";
+    for (const b of bonds) o += p3(b.a) + p3(b.b) + p3(b.o) + "  0\n";
+    return o + "M  END\n";
+  }
+  async function ligandFileToSmiles(text, fileName) {
+    const RDKit = await loadRDKit();
+    const isMol2 = /\.mol2$/i.test(fileName) || /@<TRIPOS>/.test(text);
+    const molblock = isMol2 ? mol2ToMolblock(text) : text.split("$$$$")[0]; // first record of an SDF
+    const mol = RDKit.get_mol(molblock);
+    try {
+      if (!mol || !mol.is_valid()) throw new Error("Could not parse the ligand structure.");
+      const smi = mol.get_smiles();
+      if (!smi) throw new Error("Could not derive a SMILES string.");
+      return smi;
+    } finally { if (mol) mol.delete(); }
+  }
+
   // ───────────────────────── model: entities ─────────────────────────
   let entSeq = 0;
   const entities = [];
@@ -537,8 +587,8 @@
     entities.push({ uid: ++entSeq, kind, chain: nextChain(), value: "", binder: false, _name: "" });
     renderEntities(); rebuild();
   }
-  const KIND_LABEL = { protein: "Protein", ligand_ccd: "Ligand · CCD", ligand_smiles: "Ligand · SMILES", dna: "DNA", rna: "RNA" };
-  const KIND_CHIP = { protein: "", ligand_ccd: "green", ligand_smiles: "green", dna: "amber", rna: "amber" };
+  const KIND_LABEL = { protein: "Protein", ligand_ccd: "Ligand · CCD", ligand_smiles: "Ligand · SMILES", ligand_file: "Ligand · file", dna: "DNA", rna: "RNA" };
+  const KIND_CHIP = { protein: "", ligand_ccd: "green", ligand_smiles: "green", ligand_file: "green", dna: "amber", rna: "amber" };
 
   function renderEntities() {
     const root = $("#entities"); root.innerHTML = "";
@@ -552,7 +602,7 @@
             oninput: ev => { e.chain = ev.target.value.trim().toUpperCase().slice(0, 1); rebuild(); } })
         ]),
         el("span", { class: "grow" }),
-        (e.kind === "ligand_ccd" || e.kind === "ligand_smiles")
+        e.kind.startsWith("ligand_")
           ? el("label", { class: "checkbox" }, [
               el("input", { type: "checkbox", ...(e.binder ? { checked: "checked" } : {}),
                 onchange: ev => { if (ev.target.checked) entities.forEach(x => x.binder = false); e.binder = ev.target.checked; renderEntities(); rebuild(); } }),
@@ -560,15 +610,42 @@
           : null,
         el("button", { class: "ghost tiny danger", onclick: () => { const i = entities.indexOf(e); entities.splice(i, 1); renderEntities(); rebuild(); } }, "Remove")
       ]);
+
+      // Ligand-from-file: upload .sdf/.mol/.mol2 → SMILES (RDKit, in-browser).
+      if (e.kind === "ligand_file") {
+        const status = el("span", { class: "seq-count", style: "display:block;margin-top:6px;font-size:11.5px;color:var(--muted);" },
+          e.fileName ? "from " + e.fileName : "");
+        const smi = el("input", { type: "text", placeholder: "SMILES — auto-filled after upload (editable, please verify)", value: e.value,
+          oninput: ev => { e.value = ev.target.value.trim(); rebuildDebounced(); } });
+        const file = el("input", { type: "file", accept: ".sdf,.mol,.mol2", style: "font-size:12px;",
+          onchange: async ev => {
+            const f = ev.target.files[0]; if (!f) return;
+            e.fileName = f.name; status.textContent = "Converting " + f.name + " …"; status.style.color = "var(--muted)";
+            try {
+              const smiles = await ligandFileToSmiles(await f.text(), f.name);
+              e.value = smiles; smi.value = smiles;
+              status.textContent = "✓ " + f.name + " → SMILES (verify it below)"; status.style.color = "var(--accent-2)";
+              rebuild();
+            } catch (err) { status.textContent = "✗ " + (err.message || err); status.style.color = "var(--err)"; }
+          } });
+        root.append(el("div", { class: "item" }, [head,
+          el("p", { class: "hint-p", style: "margin:0 0 6px" }, "Upload .sdf / .mol / .mol2 — converted to SMILES in your browser via RDKit."),
+          file, el("div", { style: "margin-top:8px" }, [smi]), status]));
+        continue;
+      }
+
       const ph = e.kind === "protein" ? "Amino-acid sequence (1-letter)"
         : e.kind === "ligand_ccd" ? "PDB CCD code, e.g. A8S, ATP, HEM"
         : e.kind === "ligand_smiles" ? "SMILES string"
         : "Nucleotide sequence";
       const isSeq = e.kind === "protein" || e.kind === "dna" || e.kind === "rna";
+      const unit = e.kind === "protein" ? "amino acids" : "bases";
+      const countText = v => v ? v.length + " " + unit : "";
+      const count = el("span", { class: "seq-count", style: "display:block;margin-top:4px;font-size:11.5px;color:var(--muted);" }, countText(e.value));
       const input = isSeq
-        ? el("textarea", { class: "seq", placeholder: ph, oninput: ev => { e.value = ev.target.value.replace(/\s+/g, ""); rebuildDebounced(); } }, e.value)
+        ? el("textarea", { class: "seq", placeholder: ph, oninput: ev => { e.value = ev.target.value.replace(/\s+/g, ""); count.textContent = countText(e.value); rebuildDebounced(); } }, e.value)
         : el("input", { type: "text", placeholder: ph, value: e.value, oninput: ev => { e.value = ev.target.value.trim(); rebuildDebounced(); } });
-      root.append(el("div", { class: "item" }, [head, input]));
+      root.append(el("div", { class: "item" }, [head, input, isSeq ? count : null]));
     }
   }
 
@@ -687,14 +764,15 @@
     const msaEmpty = $("#msaMode").value === "empty";
 
     const ents = entities.map(e => {
-      if (!e.value) throw new Error(`Entity ${e.chain} has no value.`);
-      const o = { type: e.kind, chain_ids: [e.chain], value: e.value };
+      if (!e.value) throw new Error(e.kind === "ligand_file" ? `Ligand ${e.chain}: upload a file (or paste SMILES).` : `Entity ${e.chain} has no value.`);
+      // a file-derived ligand is submitted to Boltz as a SMILES entity
+      const o = { type: e.kind === "ligand_file" ? "ligand_smiles" : e.kind, chain_ids: [e.chain], value: e.value };
       if (e.kind === "protein" && msaEmpty) o.msa = "empty";
       return o;
     });
     const input = { entities: ents };
 
-    const binder = entities.find(e => e.binder && (e.kind === "ligand_ccd" || e.kind === "ligand_smiles"));
+    const binder = entities.find(e => e.binder && e.kind.startsWith("ligand_"));
     if (binder) input.binding = { type: "ligand_protein_binding", binder_chain_id: binder.chain };
 
     const tmpl = [], usedChains = new Set(), dupChains = [];
