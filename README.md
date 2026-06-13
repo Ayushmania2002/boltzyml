@@ -248,7 +248,7 @@ any binary, ternary, or N-body mix of proteins, ligands (CCD or SMILES), DNA, an
 
 | Stage | Capability |
 | --- | --- |
-| **1 · Build** | Arbitrary entity sets (protein / ligand-CCD / ligand-SMILES / DNA / RNA), per-chain IDs, binder selection, and full sampling control (`num_samples`, `recycling_steps`, `sampling_steps`, `step_scale`, MSA mode). |
+| **1 · Build** | Arbitrary entity sets (protein / ligand / DNA / RNA), per-chain IDs, binder selection, live residue/base counts, and full sampling control (`num_samples`, `recycling_steps` 1–10, `sampling_steps`, `step_scale`, MSA mode). **Ligands** can be given as a CCD code, a SMILES string, **or a structure file** (`.sdf` / `.mol` / `.mol2`) that BoltzYML converts to SMILES in-browser via self-hosted RDKit. |
 | **1 · Clean templates** | Drop a raw RCSB/ChimeraX `.cif`/`.pdb`. BoltzYML rewrites `_struct_asym` to remove phantom chains, strips waters/ligands, repairs modified residues (e.g. `OCY → CYS`), and deletes `_pdbx_poly_seq_scheme` / `_struct_conn` records — the exact fixes that otherwise make the Boltz template parser fail with `StopIteration` / `Invalid input schema`. Then map each template chain to a prediction chain. |
 | **2 · Submit** | Paste **your own Boltz API key** and click submit — no setup, no install. Your key lives only in your browser tab and is forwarded to Boltz through BoltzYML's open-source proxy, which stores nothing. |
 | **3 · Results** | Poll job status, read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json` + a branded `README.txt` with citations and a how-to-interpret guide) plus the best structure by ipTM. |
@@ -259,8 +259,9 @@ No installation, no proxy setup. The whole workflow is **drop files → paste ke
 
 1. **Get a Boltz API key** ([instructions below](#getting-a-boltz-api-key--cost)).
 2. Open the app: **<https://ayushmania2002.github.io/boltzyml/v2.html>**
-3. **Define your complex** — add entities (protein sequence, ligand by CCD code or SMILES, DNA, RNA), give each a single-letter chain ID, and mark a ligand as **binder** if you want affinity/pose scoring.
-4. **(Optional) Drop a template** — a `.cif`/`.pdb` from RCSB, AlphaFold, ChimeraX, etc. BoltzYML auto-cleans it **in your browser**; then map each template chain to a prediction chain.
+3. **Define your complex** — add entities (protein sequence, ligand, DNA, RNA), give each a single-letter chain ID, and mark a ligand as **binder** if you want affinity/pose scoring. Sequence fields show a live amino-acid / base count.
+   - **Ligands** can be entered three ways: a **CCD code** (e.g. `A8S`), a **SMILES** string, or an uploaded **structure file** (`.sdf` / `.mol` / `.mol2`). File ligands are converted to SMILES **in your browser** (self-hosted RDKit, ~7 MB loaded on first use); the result is shown in an editable field so you can verify it before submitting.
+4. **(Optional) Drop a template** — a `.cif`/`.pdb` from RCSB, AlphaFold, ChimeraX, etc. BoltzYML auto-cleans it **in your browser** (and converts legacy PDB to mmCIF, emitting the polymer metadata Boltz needs); then map each template chain to a prediction chain. Boltz allows one template per chain, so duplicate mappings are dropped automatically.
 5. **Set sampling options** (or keep the defaults) and click **Rebuild** to preview the exact payload.
 6. **Paste your Boltz API key** and click **Submit prediction**.
 7. Under **Jobs & results**: **Poll** until `succeeded`, then **Download results** — you get a `.zip` of every sample structure + `metrics.json` + `README.txt`, plus the best structure by ipTM.
@@ -302,8 +303,8 @@ The hosted Boltz-2 API is a paid service (currently in **beta**), run by Boltz �
 
 - **Your API key** is forwarded to Boltz once per request and is **never logged or stored** by the proxy.
 - **Your sequences / payload** pass through the proxy to Boltz and are **not stored** by the proxy.
-- **Cleaned template files** are the *only* thing held, and only **transiently** — in Workers KV with a
-  **2-hour TTL**, after which they auto-delete (Boltz needs a fetchable URL for templates).
+- **Cleaned template files** are the *only* thing held, and only **transiently** — in a per-template
+  **Durable Object** that auto-expires after **2 hours** (Boltz needs a fetchable URL for templates).
 - The proxy is **stateless and open-source**, so you can read exactly what it does.
 
 ### Why a proxy at all?
@@ -318,14 +319,14 @@ Worker in a few minutes:
 ```bash
 cd worker
 npx wrangler login
-npx wrangler kv namespace create TEMPLATES   # prints an id → paste into wrangler.toml
-npx wrangler deploy
+npx wrangler deploy   # Durable Object migrations create the stores automatically
 ```
 
 Then **fork the app and change the hardcoded `PROXY_URL` constant** in `v2.html` to your Worker's URL.
 (By design there is *no* runtime `?proxy=` override — see [Security](#security--anti-tampering) below.) See
-[`worker/README.md`](worker/README.md). Templates are stored in Workers KV with a 2-hour TTL, and no
-payment method is required.
+[`worker/README.md`](worker/README.md). Templates are held in a **strongly-consistent Durable Object**
+(readable globally the instant they are written, so Boltz's fetch never races a slow KV propagation) and
+auto-expire after 2 hours. No payment method is required.
 
 ### Security &amp; anti-tampering
 
@@ -350,8 +351,8 @@ review** focused on protecting that credential. The safeguards in place:
   (`*.amazonaws.com`, `*.boltz.bio`), so it cannot be abused to fetch arbitrary URLs.
 - **Client-side processing.** Template parsing and CIF cleaning run **entirely in the browser**; raw user
   files are never uploaded for processing.
-- **Transient, isolated storage.** Cleaned templates auto-expire (2-hour KV TTL); the visit counter uses a
-  separate **Durable Object**, so it can never exhaust the KV write budget that template hosting depends on.
+- **Transient, isolated storage.** Cleaned templates live in per-template Durable Objects that auto-expire
+  after 2 hours; the visit counter uses a separate Durable Object. No persistent user data is retained.
 - **Transport security.** Served exclusively over HTTPS (GitHub Pages + Cloudflare TLS).
 
 The proxy is **open-source** ([`worker/worker.js`](worker/worker.js)) so every one of these claims is
@@ -378,10 +379,12 @@ client libraries if you want to script submissions directly:
 boltzyml/
 ├── index.html              # v1 web app — ternary CLI-YAML generator (GitHub Pages)
 ├── v2.html                 # v2.0 web app — hosted-API builder, template cleaner, submitter
+├── vendor/rdkit/           # Self-hosted RDKit WASM — ligand file → SMILES, loaded on demand
 ├── worker/                 # Stateless Cloudflare Worker proxy for v2.0 submission
-│   ├── worker.js           #   key passthrough + template hosting + result fetch
-│   ├── wrangler.toml       #   deploy config (R2 bucket binding)
+│   ├── worker.js           #   key passthrough + template hosting (Durable Object) + result fetch
+│   ├── wrangler.toml       #   deploy config (Durable Object bindings)
 │   └── README.md           #   one-time deploy instructions
+├── boltzyml_v2_workflow.svg/.png  # v2.0 workflow figure (site + README)
 ├── logo.png                # Wordmark — favicon + header logo
 ├── banner.png              # Pipeline schematic — used in this README
 │
@@ -461,8 +464,17 @@ BibTeX:
 
 > Wohlwend, J. et al. *Boltz-2: Towards Accurate and Efficient Binding Affinity Prediction.* 2024. <https://github.com/jwohlwend/boltz>
 
+If you use the **ligand-file → SMILES** conversion, also acknowledge **RDKit** (see below).
+
+---
+
+## Acknowledgements
+
+- **RDKit** — ligand structure files (`.sdf` / `.mol` / `.mol2`) are converted to SMILES in the browser using [RDKit](https://www.rdkit.org/) (RDKit.js / `@rdkit/rdkit`), redistributed in [`vendor/rdkit/`](vendor/rdkit/) under the BSD 3-Clause License (Copyright © Valence Discovery Inc., Greg Landrum, Paolo Tosco, and other RDKit contributors). See [`vendor/rdkit/LICENSE`](vendor/rdkit/LICENSE). *RDKit: Open-source cheminformatics. <https://www.rdkit.org>.*
+- **Boltz** — for the Boltz-2 models and the hosted API.
+
 ---
 
 ## License
 
-[MIT](LICENSE). Copyright © 2026 Ayushman Mallick.
+[MIT](LICENSE). Copyright © 2026 Ayushman Mallick. Bundled third-party components retain their own licenses (e.g. RDKit, BSD 3-Clause, in [`vendor/rdkit/LICENSE`](vendor/rdkit/LICENSE)).

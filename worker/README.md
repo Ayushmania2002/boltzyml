@@ -31,41 +31,34 @@ Requires Node.js. From this `worker/` directory:
 # 1. Log in to Cloudflare (opens a browser)
 npx wrangler login
 
-# 2. Create the KV namespace used for transient template hosting.
-#    This prints an id — copy it.
-npx wrangler kv namespace create TEMPLATES
-
-# 3. Paste that id into wrangler.toml, replacing PASTE_KV_NAMESPACE_ID_HERE:
-#       [[kv_namespaces]]
-#       binding = "TEMPLATES"
-#       id = "<the id from step 2>"
-
-# 4. Deploy
+# 2. Deploy. The Durable Object migrations in wrangler.toml create the
+#    template store and visit counter automatically — no manual setup.
 npx wrangler deploy
 ```
 
 `wrangler deploy` prints your Worker URL, e.g.
-`https://boltzyml-proxy.<your-subdomain>.workers.dev`. Paste that into the
-**Proxy URL** box in the BoltzYML v2.0 app.
+`https://boltzyml-proxy.<your-subdomain>.workers.dev`. Set that as the hardcoded
+`PROXY_URL` constant in `v2.html` (the app has no runtime proxy override, by design).
 
 ### Verify
 
 ```bash
 curl https://boltzyml-proxy.<your-subdomain>.workers.dev/health
-# {"ok":true,"service":"boltzyml-proxy","templateStore":true}
+# {"ok":true,"service":"boltzyml-proxy","store":"durable-object","templateStore":true,"counter":true}
 ```
 
-If `templateStore` is `false`, the KV binding is missing — re-check that you
-pasted the id from step 2 into the `[[kv_namespaces]]` block in `wrangler.toml`.
+If `store` is not `"durable-object"`, the deploy did not apply the Durable Object
+bindings — re-run `npx wrangler deploy` and check its output for migration errors.
 
 ## Notes
 
 - **No secrets in the Worker.** It holds no API key of its own; each request
-  carries the user's key. Nothing is persisted except uploaded templates in KV.
-- **Template cleanup is automatic.** Templates are stored with a 2-hour TTL
-  (`worker.js`), so KV deletes them on its own — no lifecycle config needed.
-- **Consistency note.** KV is eventually consistent; in the rare case Boltz
-  fetches a template a second before it propagates, just re-submit. (For
-  strong read-after-write, switch the binding to R2 — requires enabling R2.)
+  carries the user's key. Nothing is persisted except transient templates.
+- **Strong consistency.** Templates live in a per-id Durable Object, so an
+  uploaded template is readable globally the instant it is written. This avoids
+  the cross-region race that eventually-consistent KV hits when the upload and
+  Boltz's fetch land in different regions.
+- **Auto-cleanup.** Each template Durable Object sets a 2-hour alarm that
+  self-destructs it — no lifecycle config needed.
 - **Open-proxy guard.** `/fetch` only retrieves `*.amazonaws.com` and
   `*.boltz.bio` hosts.
