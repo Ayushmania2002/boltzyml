@@ -148,6 +148,9 @@
   .job .job-id { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--muted); }
   .metrics { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 12.5px; }
   .metrics b { font-family: ui-monospace, Consolas, monospace; color: var(--ink); }
+  @keyframes blz-spin { to { transform: rotate(360deg); } }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border-strong);
+    border-top-color: var(--accent); border-radius: 50%; animation: blz-spin .8s linear infinite; vertical-align: middle; }
 
   footer { max-width: 1100px; margin: 24px auto 0; padding: 22px 28px 48px; color: var(--muted);
     font-size: 12.5px; border-top: 1px solid var(--border); }
@@ -260,6 +263,12 @@
   <!-- STAGE 3 — Jobs & results -->
   <section class="card">
     <h2><span class="step">3</span> Jobs &amp; results</h2>
+    <p class="hint-p" style="margin:0 0 10px;padding:9px 12px;background:var(--warn-soft);border:1px solid #f3d3a8;border-radius:8px;color:var(--warn);">
+      ⏳ <strong>Please be patient.</strong> Predictions take a few minutes. Running jobs (spinner) refresh
+      <strong>automatically</strong>, so you do not need to click <em>Poll</em> repeatedly. Each check spends one
+      request from a shared free-tier budget, so over-polling reduces the free capacity that keeps this tool
+      free for everyone.
+    </p>
     <div class="actions" style="margin-bottom:10px">
       <button class="ghost tiny" id="refreshAll">Refresh all</button>
       <button class="ghost tiny danger" id="clearJobs">Clear list</button>
@@ -904,8 +913,8 @@
       if (!r.ok || !j.id) throw new Error((j.error && (j.error.message || j.error)) || j.message || ("submit failed (" + r.status + ")"));
       const name = (entities.map(e => e.chain).join("") || "job") + "_" + j.id.slice(-6);
       jobs.unshift({ id: j.id, name, status: j.status || "pending", ts: Date.now() });
-      saveJobs(); renderJobs();
-      setSubmitStatus("ok", "Submitted · " + j.id + " (" + (j.status || "pending") + "). Track it under Jobs & results below.");
+      saveJobs(); renderJobs(); scheduleAutoPoll();
+      setSubmitStatus("ok", "Submitted · " + j.id + " (" + (j.status || "pending") + "). It updates automatically below — no need to keep clicking Poll.");
     } catch (e) {
       setSubmitStatus("err", "Submit error: " + e.message);
     } finally { $("#submitBtn").disabled = false; }
@@ -920,14 +929,20 @@
     const cls = s === "succeeded" ? "green" : (s === "failed" ? "amber" : "");
     return el("span", { class: "chip " + cls }, s);
   }
+  const POLL_COOLDOWN = 8000;   // ignore manual re-polls within this window
+  function jobActive(job) { return job.status !== "succeeded" && job.status !== "failed"; }
   function renderJobs() {
     const root = $("#jobs"); root.innerHTML = "";
     if (!jobs.length) { root.append(el("p", { class: "hint-p" }, "No jobs yet.")); return; }
     for (const job of jobs) {
+      const active = jobActive(job);
+      const cooling = Date.now() - (job._lastPoll || 0) < POLL_COOLDOWN;
       const head = el("div", { class: "job-head" }, [
         el("div", { class: "grow" }, [el("div", {}, job.name), el("div", { class: "job-id" }, job.id)]),
         statusChip(job.status),
-        el("button", { class: "ghost tiny", onclick: () => pollJob(job) }, "Poll"),
+        active ? el("span", { class: "spinner", title: "running — updates automatically" }) : null,
+        el("button", { class: "ghost tiny", ...(cooling ? { disabled: "disabled" } : {}),
+          onclick: () => { pollJob(job); scheduleAutoPoll(); } }, cooling ? "Checking…" : "Poll"),
         el("button", { class: "ghost tiny", ...(job.status === "succeeded" ? {} : { disabled: "disabled" }), onclick: () => downloadResults(job) }, "Download results")
       ]);
       const card = el("div", { class: "job" }, [head]);
@@ -947,17 +962,37 @@
   }
   function fmtNum(v) { return v == null ? "—" : (Math.round(v * 1000) / 1000).toFixed(3); }
 
-  async function pollJob(job) {
-    if (!proxy() || !apiKey()) { job.note = "Need proxy URL + API key to poll."; job.noteKind = "warn"; renderJobs(); return; }
+  async function pollJob(job, silent) {
+    if (!apiKey()) { if (!silent) { job.note = "Enter your Boltz API key to poll."; job.noteKind = "warn"; renderJobs(); } return; }
+    if (silent && Date.now() - (job._lastPoll || 0) < 4000) return;   // de-dupe overlapping auto-polls
+    job._lastPoll = Date.now();
     try {
       const r = await fetch(proxy() + "/status?id=" + encodeURIComponent(job.id), { headers: { "X-Boltz-Key": apiKey() } });
       const j = await r.json();
       job.status = j.status || job.status;
       if (j.status === "succeeded" && j.output && j.output.best_sample) job.metrics = j.output.best_sample.metrics || null;
       if (j.status === "failed") { job.note = "Failed: " + ((j.error && (j.error.message || j.error)) || "unknown"); job.noteKind = "err"; }
-      else job.note = "";
+      else if (!silent) job.note = "";
       saveJobs(); renderJobs();
-    } catch (e) { job.note = "Poll error: " + e.message; job.noteKind = "err"; renderJobs(); }
+    } catch (e) { if (!silent) { job.note = "Poll error: " + e.message; job.noteKind = "err"; renderJobs(); } }
+    // re-render once the manual-poll cooldown lapses so the button re-enables
+    setTimeout(renderJobs, POLL_COOLDOWN + 100);
+  }
+
+  // ── Auto-poll: while any job is still running, the app checks it for you on a
+  //    gentle backoff (10s → 30s). This is why you should NOT mash "Poll": each
+  //    check spends one shared free-tier request, and over-polling eats the
+  //    daily request budget that keeps this tool free for everyone.
+  let autoPollTimer = null, autoPollDelay = 10000;
+  function scheduleAutoPoll() {
+    if (autoPollTimer) { clearTimeout(autoPollTimer); autoPollTimer = null; }
+    if (!apiKey() || !jobs.some(jobActive)) { autoPollDelay = 10000; return; }
+    autoPollTimer = setTimeout(async () => {
+      autoPollTimer = null;
+      for (const j of jobs) if (jobActive(j)) await pollJob(j, true);
+      autoPollDelay = Math.min(autoPollDelay + 5000, 30000);
+      scheduleAutoPoll();
+    }, autoPollDelay);
   }
 
   function extractSampleUrls(output) {
@@ -1203,8 +1238,8 @@
   $("#copyPayload").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("#payloadOut").value); setBuildStatus("ok", "Copied."); } catch { setBuildStatus("warn", "Copy blocked — select manually."); } });
   $("#downloadPayload").addEventListener("click", () => { if (!$("#payloadOut").value) return; triggerDownload(new Blob([$("#payloadOut").value], { type: "text/plain" }), "boltz_payload." + (fmt === "yaml" ? "yaml" : "json")); });
   $("#submitBtn").addEventListener("click", submit);
-  $("#refreshAll").addEventListener("click", () => jobs.forEach(pollJob));
-  $("#clearJobs").addEventListener("click", () => { if (confirm("Clear the local job list? (Does not cancel jobs on Boltz.)")) { jobs = []; saveJobs(); renderJobs(); } });
+  $("#refreshAll").addEventListener("click", () => { jobs.filter(jobActive).forEach(j => pollJob(j)); scheduleAutoPoll(); });
+  $("#clearJobs").addEventListener("click", () => { if (confirm("Clear the local job list? (Does not cancel jobs on Boltz.)")) { jobs = []; saveJobs(); renderJobs(); scheduleAutoPoll(); } });
   $("#testProxy").addEventListener("click", async () => {
     try { const r = await fetch(proxy() + "/health"); const j = await r.json();
       setSubmitStatus(j.ok ? "ok" : "warn", "Service online" + (j.templateStore ? " · templates supported" : " · templates unavailable") + "."); }
@@ -1233,7 +1268,7 @@
   $("#rememberKey").addEventListener("change", e => { if (e.target.checked) sessionStorage.setItem("boltzyml_key", apiKey()); else sessionStorage.removeItem("boltzyml_key"); });
 
   // seed a sensible starting point: one protein + one ligand (ternary-ready)
-  loadJobs(); renderJobs();
+  loadJobs(); renderJobs(); scheduleAutoPoll();
   addEntity("protein");
   renderTemplates();
 
