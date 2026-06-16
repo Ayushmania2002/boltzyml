@@ -216,10 +216,10 @@
   <section class="card">
     <h2><span class="step">1</span> Sampling options</h2>
     <div class="row c4">
-      <label class="field"><span>num_samples</span><input type="number" id="numSamples" value="5" min="1" max="25"></label>
+      <label class="field"><span>num_samples <span style="color:var(--muted)">(1–10)</span></span><input type="number" id="numSamples" value="5" min="1" max="10"></label>
       <label class="field"><span>recycling_steps <span style="color:var(--muted)">(1–10)</span></span><input type="number" id="recyclingSteps" value="3" min="1" max="10"></label>
-      <label class="field"><span>sampling_steps</span><input type="number" id="samplingSteps" value="200" min="10" max="500"></label>
-      <label class="field"><span>step_scale</span><input type="number" id="stepScale" value="1.638" step="0.001" min="0.1" max="5"></label>
+      <label class="field"><span>sampling_steps <span style="color:var(--muted)">(≥50)</span></span><input type="number" id="samplingSteps" value="200" min="50" max="1000"></label>
+      <label class="field"><span>step_scale <span style="color:var(--muted)">(1.3–2.0)</span></span><input type="number" id="stepScale" value="1.638" step="0.001" min="1.3" max="2"></label>
     </div>
     <label class="field" style="max-width:340px"><span>MSA</span>
       <select id="msaMode">
@@ -245,7 +245,9 @@
   <!-- STAGE 2 — Submit -->
   <section class="card">
     <h2><span class="step">2</span> Submit with your API key</h2>
-    <label class="field" style="max-width:480px"><span>Boltz API key <span style="color:var(--muted)">(kept in this browser tab only)</span></span>
+    <label class="field" style="max-width:480px"><span>Job name <span style="color:var(--muted)">(optional — names the job &amp; result files)</span></span>
+      <input type="text" id="jobName" placeholder="e.g. PYL8_ABA_PP2C37" maxlength="60" autocomplete="off"></label>
+    <label class="field" style="max-width:480px;margin-top:10px"><span>Boltz API key <span style="color:var(--muted)">(kept in this browser tab only)</span></span>
       <input type="password" id="apiKey" placeholder="sk_bc_ws_live_..." autocomplete="off"></label>
     <div class="actions">
       <label class="checkbox"><input type="checkbox" id="rememberKey"> Remember key for this tab</label>
@@ -804,11 +806,11 @@
     if (tmpl.length > 4) throw new Error("At most 4 template chain mappings (you have " + tmpl.length + ").");
     if (tmpl.length) input.templates = tmpl.map(({ _tpl, ...rest }) => rest);
 
-    input.num_samples = clampInt($("#numSamples").value, 1, 25, 5);
+    input.num_samples = clampInt($("#numSamples").value, 1, 10, 5);
     input.model_options = {
       recycling_steps: clampInt($("#recyclingSteps").value, 1, 10, 3),
-      sampling_steps: clampInt($("#samplingSteps").value, 10, 500, 200),
-      step_scale: parseFloat($("#stepScale").value) || 1.638
+      sampling_steps: clampInt($("#samplingSteps").value, 50, 1000, 200),
+      step_scale: Math.min(2, Math.max(1.3, parseFloat($("#stepScale").value) || 1.638))
     };
     return { input, templatesUsed: tmpl, dupChains };
   }
@@ -911,7 +913,8 @@
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.id) throw new Error((j.error && (j.error.message || j.error)) || j.message || ("submit failed (" + r.status + ")"));
-      const name = (entities.map(e => e.chain).join("") || "job") + "_" + j.id.slice(-6);
+      const custom = $("#jobName").value.trim().replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+      const name = custom || ((entities.map(e => e.chain).join("") || "job") + "_" + j.id.slice(-6));
       jobs.unshift({ id: j.id, name, status: j.status || "pending", ts: Date.now() });
       saveJobs(); renderJobs(); scheduleAutoPoll();
       setSubmitStatus("ok", "Submitted · " + j.id + " (" + (j.status || "pending") + "). It updates automatically below — no need to keep clicking Poll.");
@@ -1248,7 +1251,7 @@
 
   // sampling inputs: clamp the field to its allowed range on change (so what
   // you see is exactly what's submitted — no silent capping), then rebuild.
-  [["numSamples", 1, 25], ["recyclingSteps", 1, 10], ["samplingSteps", 10, 500]].forEach(([id, lo, hi]) => {
+  [["numSamples", 1, 10], ["recyclingSteps", 1, 10], ["samplingSteps", 50, 1000]].forEach(([id, lo, hi]) => {
     const inp = $("#" + id);
     inp.addEventListener("change", () => {
       const n = parseInt(inp.value, 10);
