@@ -251,7 +251,7 @@ any binary, ternary, or N-body mix of proteins, ligands (CCD or SMILES), DNA, an
 | **1 · Build** | Arbitrary entity sets (protein / ligand / DNA / RNA), per-chain IDs, binder selection, live residue/base counts, and sampling control matched to the API (`num_samples` 1–10, `recycling_steps` 1–10, `sampling_steps` ≥50, `step_scale` 1.3–2.0). **Ligands** by CCD code, SMILES, or a structure file (`.sdf`/`.mol`/`.mol2`) converted to SMILES in-browser via self-hosted RDKit. **Per-protein MSA**: automatic, single-sequence, or upload your own `.a3m`/`.csv`. |
 | **1 · Clean templates** | Drop a raw RCSB/ChimeraX `.cif`/`.pdb`. BoltzYML rewrites `_struct_asym` to remove phantom chains, strips waters/ligands, repairs modified residues (e.g. `OCY → CYS`), deletes `_pdbx_poly_seq_scheme` / `_struct_conn` records, and rebuilds polymer metadata for raw PDB files — the exact fixes that otherwise make the Boltz template parser fail. Then map each template chain to a prediction chain (one template per chain; duplicates are dropped). |
 | **2 · Submit** | Name the job (optional), **estimate the exact cost** via Boltz's `estimate-cost` endpoint before you commit, then paste **your own Boltz API key** and submit. No setup, no install. Your key lives only in your browser tab and is forwarded to Boltz through BoltzYML's open-source proxy, which stores nothing. |
-| **3 · Results** | Jobs **poll themselves** with a spinner (no over-clicking). Read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json` + a branded `README.txt` with citations and a how-to-interpret guide) plus the best structure by ipTM. |
+| **3 · Results** | Jobs **poll themselves** with a spinner (no over-clicking). **View the structure in-browser** (3Dmol viewer, colored by pLDDT confidence or by chain, with a legend), read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json` + a branded `README.txt` with citations and a how-to-interpret guide) plus the best structure by ipTM. |
 
 ### Using BoltzYML v2.0 — just bring your Boltz API key
 
@@ -266,7 +266,7 @@ No installation, no proxy setup. The whole workflow is **drop files → paste ke
 5. **Set sampling options** (or keep the defaults) and click **Rebuild** to preview the exact payload.
 6. **(Optional) Name the job** and click **Estimate cost** to get Boltz's exact USD estimate before committing.
 7. **Paste your Boltz API key** and click **Submit prediction**. Running jobs **poll themselves** with a spinner, so you do not need to keep clicking.
-8. Under **Jobs & results**, once `succeeded`, click **Download results** — a `.zip` of every sample structure + `metrics.json` + `README.txt`, plus the best structure by ipTM. Files use your job name when set.
+8. Under **Jobs & results**, once `succeeded`, click **View 3D** to see the predicted structure right in the page (colored by pLDDT confidence or by chain), or **Download results** — a `.zip` of every sample structure + `metrics.json` + `README.txt`, plus the best structure by ipTM. Files use your job name when set.
 
 ### Getting a Boltz API key &amp; cost
 
@@ -383,6 +383,7 @@ boltzyml/
 ├── index.html              # v1 web app — ternary CLI-YAML generator (GitHub Pages)
 ├── v2.html                 # v2.0 web app — hosted-API builder, template cleaner, submitter
 ├── vendor/rdkit/           # Self-hosted RDKit WASM — ligand file → SMILES, loaded on demand
+├── vendor/3dmol/           # Self-hosted 3Dmol.js — in-browser structure viewer, loaded on demand
 ├── worker/                 # Stateless Cloudflare Worker proxy for v2.0 submission
 │   ├── worker.js           #   key passthrough + template hosting (Durable Object) + result fetch
 │   ├── wrangler.toml       #   deploy config (Durable Object bindings)
@@ -474,6 +475,7 @@ If you use the **ligand-file → SMILES** conversion, also acknowledge **RDKit**
 ## Acknowledgements
 
 - **RDKit** — ligand structure files (`.sdf` / `.mol` / `.mol2`) are converted to SMILES in the browser using [RDKit](https://www.rdkit.org/) (RDKit.js / `@rdkit/rdkit`), redistributed in [`vendor/rdkit/`](vendor/rdkit/) under the BSD 3-Clause License (Copyright © Valence Discovery Inc., Greg Landrum, Paolo Tosco, and other RDKit contributors). See [`vendor/rdkit/LICENSE`](vendor/rdkit/LICENSE). *RDKit: Open-source cheminformatics. <https://www.rdkit.org>.*
+- **3Dmol.js** — the in-browser structure viewer (pLDDT / chain coloring) uses [3Dmol.js](https://3dmol.csb.pitt.edu/), redistributed in [`vendor/3dmol/`](vendor/3dmol/) under the BSD 3-Clause License. See [`vendor/3dmol/LICENSE`](vendor/3dmol/LICENSE). *Rego &amp; Koes, 3Dmol.js: molecular visualization with WebGL, Bioinformatics (2015).*
 - **Boltz** — for the Boltz-2 models and the hosted API.
 
 ---

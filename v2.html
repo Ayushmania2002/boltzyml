@@ -276,9 +276,32 @@
       <button class="ghost tiny" id="refreshAll">Refresh all</button>
       <button class="ghost tiny danger" id="clearJobs">Clear list</button>
     </div>
-    <div id="jobs"><p class="hint-p">Submitted jobs appear here. Poll status, then download a
-      results <code class="inline">.zip</code> (all sample CIFs + <code class="inline">metrics.json</code>)
-      and the best structure by ipTM.</p></div>
+
+    <!-- 3D structure viewer (3Dmol, lazy-loaded on first use) -->
+    <div id="viewerPanel" style="display:none;border:1px solid var(--border);border-radius:12px;margin-bottom:12px;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;background:var(--panel-2);border-bottom:1px solid var(--border);">
+        <strong id="viewerTitle" style="font-size:13px;">Structure</strong>
+        <span id="viewerMetrics" style="font-size:12px;color:var(--muted);"></span>
+        <span style="flex:1"></span>
+        <div class="seg"><button id="colorPlddt" class="active">pLDDT</button><button id="colorChain">Chain</button></div>
+        <button class="ghost tiny" id="viewerClose">Close</button>
+      </div>
+      <div style="position:relative;">
+        <div id="viewer3d" style="width:100%;height:440px;position:relative;"></div>
+        <div id="plddtLegend" style="position:absolute;top:10px;left:10px;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.7;">
+          <div style="font-weight:600;margin-bottom:2px;">pLDDT confidence</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:#0053D6;border-radius:2px;"></span> Very high (&gt;90)</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:#65CBF3;border-radius:2px;"></span> Confident (70–90)</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:#FFDB13;border-radius:2px;"></span> Low (50–70)</div>
+          <div><span style="display:inline-block;width:10px;height:10px;background:#FF7D45;border-radius:2px;"></span> Very low (≤50)</div>
+        </div>
+        <div id="viewerStatus" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;"></div>
+      </div>
+    </div>
+
+    <div id="jobs"><p class="hint-p">Submitted jobs appear here. They poll themselves; when one succeeds,
+      <strong>View 3D</strong> opens the structure here, or download a results <code class="inline">.zip</code>
+      (all sample CIFs + <code class="inline">metrics.json</code>) plus the best structure by ipTM.</p></div>
   </section>
 </main>
 
@@ -313,6 +336,9 @@
     Ligand structure files are converted to SMILES in your browser using
     <a href="https://www.rdkit.org/" target="_blank" rel="noopener">RDKit</a>
     (<a href="https://github.com/Ayushmania2002/boltzyml/blob/main/vendor/rdkit/LICENSE" target="_blank" rel="noopener">BSD 3-Clause</a>).
+    The 3D structure viewer uses
+    <a href="https://3dmol.csb.pitt.edu/" target="_blank" rel="noopener">3Dmol.js</a>
+    (<a href="https://github.com/Ayushmania2002/boltzyml/blob/main/vendor/3dmol/LICENSE" target="_blank" rel="noopener">BSD 3-Clause</a>).
   </p>
 </footer>
 
@@ -1017,6 +1043,7 @@
         active ? el("span", { class: "spinner", title: "running — updates automatically" }) : null,
         el("button", { class: "ghost tiny", ...(cooling ? { disabled: "disabled" } : {}),
           onclick: () => { pollJob(job); scheduleAutoPoll(); } }, cooling ? "Checking…" : "Poll"),
+        el("button", { class: "ghost tiny", ...(job.status === "succeeded" ? {} : { disabled: "disabled" }), onclick: () => viewStructure(job) }, "View 3D"),
         el("button", { class: "ghost tiny", ...(job.status === "succeeded" ? {} : { disabled: "disabled" }), onclick: () => downloadResults(job) }, "Download results")
       ]);
       const card = el("div", { class: "job" }, [head]);
@@ -1269,6 +1296,68 @@
     } catch (e) { job.note = "Download error: " + e.message; job.noteKind = "err"; renderJobs(); }
   }
 
+  // ───────────────────────── 3D structure viewer (3Dmol) ─────────────────────────
+  let _3dmolPromise = null;
+  function load3Dmol() {
+    if (window.$3Dmol) return Promise.resolve(window.$3Dmol);
+    if (_3dmolPromise) return _3dmolPromise;
+    _3dmolPromise = new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = new URL("vendor/3dmol/3Dmol-min.js", location.href).href;
+      s.onload = () => res(window.$3Dmol);
+      s.onerror = () => rej(new Error("Could not load the 3D viewer."));
+      document.head.appendChild(s);
+    });
+    return _3dmolPromise;
+  }
+  // AlphaFold-style pLDDT palette (pLDDT is stored in the B-factor column).
+  const plddtColor = b => b > 90 ? "#0053D6" : b > 70 ? "#65CBF3" : b > 50 ? "#FFDB13" : "#FF7D45";
+  const CHAIN_PALETTE = ["#2563eb", "#0e9f6e", "#e2231a", "#b45309", "#7c3aed", "#0891b2", "#be185d", "#4d7c0f"];
+  let _viewer = null, _viewColor = "plddt", _chainCols = {};
+  function styleViewer() {
+    if (!_viewer) return;
+    if (_viewColor === "plddt") {
+      _viewer.setStyle({}, { cartoon: { colorfunc: a => plddtColor(a.b) } });
+    } else {
+      _chainCols = {};
+      _viewer.setStyle({}, { cartoon: { colorfunc: a => {
+        if (!(a.chain in _chainCols)) _chainCols[a.chain] = CHAIN_PALETTE[Object.keys(_chainCols).length % CHAIN_PALETTE.length];
+        return _chainCols[a.chain];
+      } } });
+    }
+    _viewer.addStyle({ hetflag: true }, { stick: { radius: 0.18 } });   // ligands as sticks
+    _viewer.render();
+  }
+  async function viewStructure(job) {
+    if (!apiKey()) return setSubmitStatus("err", "Enter your Boltz API key to view the structure.");
+    const panel = $("#viewerPanel"), status = $("#viewerStatus");
+    panel.style.display = "block";
+    $("#viewerTitle").textContent = job.name;
+    $("#viewerMetrics").textContent = job.metrics
+      ? "ipTM " + fmtNum(job.metrics.iptm) + " · pTM " + fmtNum(job.metrics.ptm) + " · pLDDT " + fmtNum(job.metrics.complex_plddt) : "";
+    status.textContent = "Loading structure…"; status.style.display = "flex";
+    panel.scrollIntoView({ behavior: "smooth", block: "center" });
+    try {
+      const r = await fetch(proxy() + "/status?id=" + encodeURIComponent(job.id), { headers: { "X-Boltz-Key": apiKey() } });
+      const j = await r.json();
+      const out = j.output || {};
+      let url = out.best_sample && out.best_sample.structure && out.best_sample.structure.url;
+      if (!url) { const m = extractSampleUrls(out); const ks = [...m.keys()].sort((a, b) => a - b); url = m.get(ks[0]); }
+      if (!url) throw new Error("no structure URL in the job output");
+      const resp = await fetch(proxy() + "/fetch?url=" + encodeURIComponent(url));
+      if (!resp.ok) throw new Error("could not fetch the structure file");
+      const cif = await resp.text();
+      const $3Dmol = await load3Dmol();
+      const host = $("#viewer3d"); host.innerHTML = "";
+      _viewer = $3Dmol.createViewer(host, { backgroundColor: "white" });
+      _viewer.addModel(cif, "cif");
+      styleViewer();
+      _viewer.zoomTo();
+      _viewer.render();
+      status.style.display = "none";
+    } catch (e) { status.textContent = "Could not load structure: " + (e.message || e); status.style.display = "flex"; }
+  }
+
   // ───────────────────────── store-only ZIP writer ─────────────────────────
   const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
   function crc32(buf) { let c = 0xFFFFFFFF; for (let i = 0; i < buf.length; i++) c = CRC[(c ^ buf[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
@@ -1313,6 +1402,9 @@
   $("#downloadPayload").addEventListener("click", () => { if (!$("#payloadOut").value) return; triggerDownload(new Blob([$("#payloadOut").value], { type: "text/plain" }), "boltz_payload." + (fmt === "yaml" ? "yaml" : "json")); });
   $("#submitBtn").addEventListener("click", submit);
   $("#estimateBtn").addEventListener("click", estimateCost);
+  $("#colorPlddt").addEventListener("click", () => { _viewColor = "plddt"; $("#colorPlddt").classList.add("active"); $("#colorChain").classList.remove("active"); $("#plddtLegend").style.display = "block"; styleViewer(); });
+  $("#colorChain").addEventListener("click", () => { _viewColor = "chain"; $("#colorChain").classList.add("active"); $("#colorPlddt").classList.remove("active"); $("#plddtLegend").style.display = "none"; styleViewer(); });
+  $("#viewerClose").addEventListener("click", () => { $("#viewerPanel").style.display = "none"; if (_viewer) { _viewer.clear(); _viewer = null; } });
   $("#refreshAll").addEventListener("click", () => { jobs.filter(jobActive).forEach(j => pollJob(j)); scheduleAutoPoll(); });
   $("#clearJobs").addEventListener("click", () => { if (confirm("Clear the local job list? (Does not cancel jobs on Boltz.)")) { jobs = []; saveJobs(); renderJobs(); scheduleAutoPoll(); } });
   $("#testProxy").addEventListener("click", async () => {
