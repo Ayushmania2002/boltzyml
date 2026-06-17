@@ -151,6 +151,12 @@
   @keyframes blz-spin { to { transform: rotate(360deg); } }
   .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border-strong);
     border-top-color: var(--accent); border-radius: 50%; animation: blz-spin .8s linear infinite; vertical-align: middle; }
+  .seqrow { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.5; margin: 2px 0; white-space: nowrap; }
+  .seqrow .chid { display: inline-block; min-width: 56px; color: var(--muted); font-weight: 600; user-select: none; }
+  .seqrow .res { display: inline-block; width: 11px; text-align: center; cursor: pointer; border-radius: 2px; }
+  .seqrow .res:hover { background: var(--accent-soft); }
+  .seqrow .res.sel { background: #ff1744; color: #fff; }
+  .seq-hint { font-size: 11px; color: var(--muted); margin: 0 0 4px; }
 
   footer { max-width: 1100px; margin: 24px auto 0; padding: 22px 28px 48px; color: var(--muted);
     font-size: 12.5px; border-top: 1px solid var(--border); }
@@ -297,6 +303,7 @@
         </div>
         <div id="viewerStatus" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;"></div>
       </div>
+      <div id="viewerSeq" style="border-top:1px solid var(--border);padding:8px 12px;max-height:150px;overflow:auto;background:var(--panel);"></div>
     </div>
 
     <div id="jobs"><p class="hint-p">Submitted jobs appear here. They poll themselves; when one succeeds,
@@ -1056,12 +1063,20 @@
           job.metrics.ligand_iptm != null ? metric("ligand-ipTM", job.metrics.ligand_iptm) : null
         ]));
       }
+      // timing from Boltz timestamps: compute runtime + total (incl. queue)
+      const runtime = (job.completed_at && job.started_at) ? fmtDur(new Date(job.completed_at) - new Date(job.started_at)) : null;
+      if (runtime) {
+        const total = job.created_at ? fmtDur(new Date(job.completed_at) - new Date(job.created_at)) : null;
+        card.append(el("div", { class: "metrics", style: "color:var(--muted)" },
+          [el("span", {}, "⏱ ran in " + runtime + (total && total !== runtime ? " · " + total + " incl. queue" : ""))]));
+      }
       // text node (not html) — job.note can include API/error text echoing file content.
       if (job.note) card.append(el("div", { class: "status " + (job.noteKind || "info"), style: "margin-top:8px" }, [el("span", {}, [job.note])]));
       root.append(card);
     }
   }
   function fmtNum(v) { return v == null ? "—" : (Math.round(v * 1000) / 1000).toFixed(3); }
+  function fmtDur(ms) { if (ms == null || !isFinite(ms) || ms < 0) return null; const s = Math.round(ms / 1000); if (s < 60) return s + "s"; const m = Math.floor(s / 60); return m + "m " + (s % 60) + "s"; }
 
   async function pollJob(job, silent) {
     if (!apiKey()) { if (!silent) { job.note = "Enter your Boltz API key to poll."; job.noteKind = "warn"; renderJobs(); } return; }
@@ -1071,6 +1086,9 @@
       const r = await fetch(proxy() + "/status?id=" + encodeURIComponent(job.id), { headers: { "X-Boltz-Key": apiKey() } });
       const j = await r.json();
       job.status = j.status || job.status;
+      if (j.created_at) job.created_at = j.created_at;       // ISO timestamps from Boltz
+      if (j.started_at) job.started_at = j.started_at;
+      if (j.completed_at) job.completed_at = j.completed_at;
       if (j.status === "succeeded" && j.output && j.output.best_sample) job.metrics = j.output.best_sample.metrics || null;
       if (j.status === "failed") { job.note = "Failed: " + ((j.error && (j.error.message || j.error)) || "unknown"); job.noteKind = "err"; }
       else if (!silent) job.note = "";
@@ -1313,7 +1331,15 @@
   // AlphaFold-style pLDDT palette (pLDDT is stored in the B-factor column).
   const plddtColor = b => b > 90 ? "#0053D6" : b > 70 ? "#65CBF3" : b > 50 ? "#FFDB13" : "#FF7D45";
   const CHAIN_PALETTE = ["#2563eb", "#0e9f6e", "#e2231a", "#b45309", "#7c3aed", "#0891b2", "#be185d", "#4d7c0f"];
+  const NUC1 = { DA: "A", DC: "C", DG: "G", DT: "T", DU: "U", A: "A", C: "C", G: "G", U: "U", T: "T" };
   let _viewer = null, _viewColor = "plddt", _chainCols = {};
+  const _sel = new Set();  // selected residues, keyed "chain:resi"
+  function applyHighlight() {
+    if (!_viewer || !_sel.size) return;
+    const byCh = {};
+    for (const k of _sel) { const i = k.indexOf(":"); const ch = k.slice(0, i), ri = +k.slice(i + 1); (byCh[ch] = byCh[ch] || []).push(ri); }
+    for (const ch in byCh) _viewer.addStyle({ chain: ch, resi: byCh[ch] }, { stick: { color: "#ff1744", radius: 0.32 }, sphere: { color: "#ff1744", scale: 0.35 } });
+  }
   function styleViewer() {
     if (!_viewer) return;
     if (_viewColor === "plddt") {
@@ -1326,8 +1352,39 @@
       } } });
     }
     _viewer.addStyle({ hetflag: true }, { stick: { radius: 0.18 } });   // ligands as sticks
+    applyHighlight();
     _viewer.render();
   }
+  function setupHover() {
+    _viewer.setHoverable({}, true,
+      (atom, v) => { if (atom._hl) return;
+        atom._hl = v.addLabel(atom.resn + " " + atom.resi + " · " + atom.chain,
+          { position: atom, backgroundColor: "#111827", backgroundOpacity: 0.85, fontColor: "white", fontSize: 11, borderThickness: 0 });
+        v.render(); },
+      (atom, v) => { if (atom._hl) { v.removeLabel(atom._hl); delete atom._hl; v.render(); } });
+  }
+  function buildSeqStrip(model) {
+    const seqDiv = $("#viewerSeq"); seqDiv.innerHTML = "";
+    const chains = {};                                   // chain -> Map(resi -> resn)
+    for (const a of model.selectedAtoms({})) {
+      if (a.hetflag) continue;                           // polymer only in the sequence strip
+      const ch = a.chain || "?";
+      (chains[ch] = chains[ch] || new Map());
+      if (!chains[ch].has(a.resi)) chains[ch].set(a.resi, a.resn);
+    }
+    const one = resn => AA3_TO_1[resn] || NUC1[resn] || "·";
+    seqDiv.append(el("p", { class: "seq-hint" }, "Drag across residues to highlight them in 3D · hover the structure for residue info · click a chain label to clear."));
+    for (const ch of Object.keys(chains).sort()) {
+      const residues = [...chains[ch].entries()].sort((a, b) => a[0] - b[0]);
+      const row = el("div", { class: "seqrow" });
+      row.append(el("span", { class: "chid", onclick: () => { clearSel(); } }, "Chain " + ch));
+      for (const [resi, resn] of residues)
+        row.append(el("span", { class: "res", "data-key": ch + ":" + resi, title: resn + " " + resi + " · " + ch }, one(resn)));
+      seqDiv.append(row);
+    }
+  }
+  function markSel() { $("#viewerSeq").querySelectorAll(".res").forEach(sp => sp.classList.toggle("sel", _sel.has(sp.getAttribute("data-key")))); }
+  function clearSel() { _sel.clear(); markSel(); styleViewer(); }
   async function viewStructure(job) {
     if (!apiKey()) return setSubmitStatus("err", "Enter your Boltz API key to view the structure.");
     const panel = $("#viewerPanel"), status = $("#viewerStatus");
@@ -1336,6 +1393,7 @@
     $("#viewerMetrics").textContent = job.metrics
       ? "ipTM " + fmtNum(job.metrics.iptm) + " · pTM " + fmtNum(job.metrics.ptm) + " · pLDDT " + fmtNum(job.metrics.complex_plddt) : "";
     status.textContent = "Loading structure…"; status.style.display = "flex";
+    $("#viewerSeq").innerHTML = ""; _sel.clear();
     panel.scrollIntoView({ behavior: "smooth", block: "center" });
     try {
       const r = await fetch(proxy() + "/status?id=" + encodeURIComponent(job.id), { headers: { "X-Boltz-Key": apiKey() } });
@@ -1350,8 +1408,10 @@
       const $3Dmol = await load3Dmol();
       const host = $("#viewer3d"); host.innerHTML = "";
       _viewer = $3Dmol.createViewer(host, { backgroundColor: "white" });
-      _viewer.addModel(cif, "cif");
+      const model = _viewer.addModel(cif, "cif");
       styleViewer();
+      setupHover();
+      buildSeqStrip(model);
       _viewer.zoomTo();
       _viewer.render();
       status.style.display = "none";
@@ -1404,7 +1464,24 @@
   $("#estimateBtn").addEventListener("click", estimateCost);
   $("#colorPlddt").addEventListener("click", () => { _viewColor = "plddt"; $("#colorPlddt").classList.add("active"); $("#colorChain").classList.remove("active"); $("#plddtLegend").style.display = "block"; styleViewer(); });
   $("#colorChain").addEventListener("click", () => { _viewColor = "chain"; $("#colorChain").classList.add("active"); $("#colorPlddt").classList.remove("active"); $("#plddtLegend").style.display = "none"; styleViewer(); });
-  $("#viewerClose").addEventListener("click", () => { $("#viewerPanel").style.display = "none"; if (_viewer) { _viewer.clear(); _viewer = null; } });
+  $("#viewerClose").addEventListener("click", () => { $("#viewerPanel").style.display = "none"; _sel.clear(); if (_viewer) { _viewer.clear(); _viewer = null; } });
+  // drag-select residues on the sequence strip → highlight in 3D
+  (() => {
+    const seqDiv = $("#viewerSeq");
+    let dragging = false, anchor = null, dragChain = null;
+    const keyOf = sp => sp && sp.getAttribute("data-key");
+    const parse = k => { const i = k.indexOf(":"); return { ch: k.slice(0, i), ri: +k.slice(i + 1) }; };
+    function selectRange(k1, k2) {
+      const a = parse(k1), b = parse(k2); if (a.ch !== b.ch) return;
+      const lo = Math.min(a.ri, b.ri), hi = Math.max(a.ri, b.ri);
+      _sel.clear();
+      seqDiv.querySelectorAll(".res").forEach(sp => { const p = parse(keyOf(sp)); if (p.ch === a.ch && p.ri >= lo && p.ri <= hi) _sel.add(keyOf(sp)); });
+      markSel(); styleViewer();
+    }
+    seqDiv.addEventListener("mousedown", e => { const sp = e.target.closest(".res"); if (!sp) return; e.preventDefault(); dragging = true; anchor = keyOf(sp); dragChain = parse(anchor).ch; selectRange(anchor, anchor); });
+    seqDiv.addEventListener("mouseover", e => { if (!dragging) return; const sp = e.target.closest(".res"); if (!sp) return; if (parse(keyOf(sp)).ch === dragChain) selectRange(anchor, keyOf(sp)); });
+    window.addEventListener("mouseup", () => { dragging = false; });
+  })();
   $("#refreshAll").addEventListener("click", () => { jobs.filter(jobActive).forEach(j => pollJob(j)); scheduleAutoPoll(); });
   $("#clearJobs").addEventListener("click", () => { if (confirm("Clear the local job list? (Does not cancel jobs on Boltz.)")) { jobs = []; saveJobs(); renderJobs(); scheduleAutoPoll(); } });
   $("#testProxy").addEventListener("click", async () => {
