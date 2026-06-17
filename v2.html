@@ -252,6 +252,7 @@
     <div class="actions">
       <label class="checkbox"><input type="checkbox" id="rememberKey"> Remember key for this tab</label>
       <button class="ghost tiny" id="testProxy">Check service</button>
+      <button class="ghost tiny" id="estimateBtn">Estimate cost</button>
       <span class="grow" style="flex:1"></span>
       <button class="primary" id="submitBtn" disabled>Submit prediction</button>
     </div>
@@ -286,7 +287,8 @@
     <strong>BoltzYML v2.0</strong> — runs in your browser; submission goes through a proxy you deploy and control.
   </p>
   <p id="visitCount" style="margin:0 0 10px;font-size:12px;color:var(--muted);visibility:hidden;">
-    👁 <span id="visitNum">—</span> visits to BoltzYML
+    🧬 <strong id="predNum">—</strong> predictions run with BoltzYML
+    &nbsp;·&nbsp; 👁 <span id="visitNum">—</span> visits
   </p>
   <p style="margin:0 0 12px;">
     © 2026 <strong>Ayushman Mallick</strong>. Released under the
@@ -661,7 +663,27 @@
       const input = isSeq
         ? el("textarea", { class: "seq", placeholder: ph, oninput: ev => { e.value = ev.target.value.replace(/\s+/g, ""); count.textContent = countText(e.value); rebuildDebounced(); } }, e.value)
         : el("input", { type: "text", placeholder: ph, value: e.value, oninput: ev => { e.value = ev.target.value.trim(); rebuildDebounced(); } });
-      root.append(el("div", { class: "item" }, [head, input, isSeq ? count : null]));
+
+      // per-protein custom MSA upload (.a3m/.csv → base64, sent inline to Boltz)
+      let msaCtrl = null;
+      if (e.kind === "protein") {
+        const msaStat = el("span", { class: "seq-count", style: "font-size:11.5px;color:var(--muted)" },
+          e.msaFile ? "✓ " + e.msaFile.fileName + " (" + e.msaFile.format + ")" : "");
+        const msaFile = el("input", { type: "file", accept: ".a3m,.csv", style: "font-size:11px;width:auto;",
+          onchange: async ev => {
+            const f = ev.target.files[0]; if (!f) return;
+            const format = /\.csv$/i.test(f.name) ? "csv" : "a3m";
+            const buf = new Uint8Array(await f.arrayBuffer());
+            let bin = ""; for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+            e.msaFile = { format, b64: btoa(bin), fileName: f.name };
+            renderEntities(); rebuild();
+          } });
+        const clearBtn = e.msaFile ? el("button", { class: "ghost tiny", onclick: () => { e.msaFile = null; renderEntities(); rebuild(); } }, "clear") : null;
+        msaCtrl = el("div", { style: "margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
+          el("span", { style: "font-size:11.5px;color:var(--ink-soft)" }, "Custom MSA (optional, .a3m/.csv):"),
+          msaFile, clearBtn, msaStat]);
+      }
+      root.append(el("div", { class: "item" }, [head, input, isSeq ? count : null, msaCtrl]));
     }
   }
 
@@ -783,7 +805,11 @@
       if (!e.value) throw new Error(e.kind === "ligand_file" ? `Ligand ${e.chain}: upload a file (or paste SMILES).` : `Entity ${e.chain} has no value.`);
       // a file-derived ligand is submitted to Boltz as a SMILES entity
       const o = { type: e.kind === "ligand_file" ? "ligand_smiles" : e.kind, chain_ids: [e.chain], value: e.value };
-      if (e.kind === "protein" && msaEmpty) o.msa = "empty";
+      if (e.kind === "protein") {
+        if (e.msaFile) o.msa = { type: "custom", format: e.msaFile.format,
+          source: { type: "base64", data: e.msaFile.b64, media_type: e.msaFile.format === "a3m" ? "text/x-a3m" : "text/csv" } };
+        else if (msaEmpty) o.msa = "empty";
+      }
       return o;
     });
     const input = { entities: ents };
@@ -824,7 +850,16 @@
       L.push(`  - type: ${e.type}`);
       L.push(`    chain_ids: [${e.chain_ids.join(", ")}]`);
       L.push(`    value: ${e.value}`);
-      if (e.msa) L.push(`    msa: ${e.msa}`);
+      if (typeof e.msa === "string") L.push(`    msa: ${e.msa}`);
+      else if (e.msa) {
+        L.push(`    msa:`);
+        L.push(`      type: ${e.msa.type}`);
+        L.push(`      format: ${e.msa.format}`);
+        L.push(`      source:`);
+        L.push(`        type: ${e.msa.source.type}`);
+        L.push(`        media_type: ${e.msa.source.media_type}`);
+        L.push(`        data: ${e.msa.source.data}`);
+      }
     }
     if (input.binding) {
       L.push("binding:");
@@ -850,12 +885,25 @@
     return L.join("\n") + "\n";
   }
 
+  // base64 MSA blobs are huge; show a short placeholder in the preview (the real
+  // bytes are still sent on submit, this only affects the displayed payload).
+  function maskForPreview(input) {
+    const c = JSON.parse(JSON.stringify(input));
+    for (const e of c.entities) {
+      if (e.msa && typeof e.msa === "object" && e.msa.source && e.msa.source.data) {
+        const kb = Math.max(1, Math.round(e.msa.source.data.length * 3 / 4 / 1024));
+        e.msa.source.data = `«base64 ${e.msa.format} MSA, ~${kb} KB»`;
+      }
+    }
+    return c;
+  }
   let fmt = "yaml", lastInput = null;
   function rebuild() {
     try {
       const { input, dupChains } = buildInput();
       lastInput = input;
-      $("#payloadOut").value = fmt === "yaml" ? toYaml(input) : JSON.stringify(input, null, 2);
+      const shown = maskForPreview(input);
+      $("#payloadOut").value = fmt === "yaml" ? toYaml(shown) : JSON.stringify(shown, null, 2);
       const dupNote = dupChains.length ? " ⚠ dropped duplicate template mapping(s) for chain " + [...new Set(dupChains)].join(", ") + " (Boltz allows one template per chain)." : "";
       setBuildStatus(dupChains.length ? "warn" : "ok", "Payload ready · " + input.entities.length + " entities" + (input.templates ? ", " + input.templates.length + " template mapping(s)" : "") + "." + dupNote);
       $("#submitBtn").disabled = false;
@@ -921,6 +969,29 @@
     } catch (e) {
       setSubmitStatus("err", "Submit error: " + e.message);
     } finally { $("#submitBtn").disabled = false; }
+  }
+
+  // Ask Boltz for an exact cost estimate before submitting (official endpoint).
+  // Templates carry no billable units, so they are omitted from the estimate.
+  async function estimateCost() {
+    if (!apiKey()) return setSubmitStatus("err", "Enter your Boltz API key to estimate cost.");
+    let built; try { built = buildInput(); } catch (e) { return setSubmitStatus("err", e.message); }
+    const estInput = { ...built.input }; delete estInput.templates;
+    $("#estimateBtn").disabled = true;
+    setSubmitStatus("info", "Estimating cost…");
+    try {
+      const r = await fetch(proxy() + "/estimate", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Boltz-Key": apiKey() },
+        body: JSON.stringify({ input: estInput, model: "boltz-2.1" })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((j.error && (j.error.message || j.error)) || j.message || ("estimate failed (" + r.status + ")"));
+      const b = j.breakdown || {};
+      setSubmitStatus("ok", "Estimated cost: $" + j.estimated_cost_usd
+        + (b.num_units ? " (" + b.num_units + " samples × $" + b.cost_per_unit_usd + " each)" : "")
+        + ". Estimate only; the actual charge may differ.");
+    } catch (e) { setSubmitStatus("err", "Estimate error: " + e.message); }
+    finally { $("#estimateBtn").disabled = false; }
   }
 
   // ───────────────────────── jobs & results (Stage 3) ─────────────────────────
@@ -1241,6 +1312,7 @@
   $("#copyPayload").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("#payloadOut").value); setBuildStatus("ok", "Copied."); } catch { setBuildStatus("warn", "Copy blocked — select manually."); } });
   $("#downloadPayload").addEventListener("click", () => { if (!$("#payloadOut").value) return; triggerDownload(new Blob([$("#payloadOut").value], { type: "text/plain" }), "boltz_payload." + (fmt === "yaml" ? "yaml" : "json")); });
   $("#submitBtn").addEventListener("click", submit);
+  $("#estimateBtn").addEventListener("click", estimateCost);
   $("#refreshAll").addEventListener("click", () => { jobs.filter(jobActive).forEach(j => pollJob(j)); scheduleAutoPoll(); });
   $("#clearJobs").addEventListener("click", () => { if (confirm("Clear the local job list? (Does not cancel jobs on Boltz.)")) { jobs = []; saveJobs(); renderJobs(); scheduleAutoPoll(); } });
   $("#testProxy").addEventListener("click", async () => {
@@ -1275,10 +1347,11 @@
   addEntity("protein");
   renderTemplates();
 
-  // project-wide visit counter (Durable Object on the proxy; never touches KV)
+  // project-wide counters (Durable Object on the proxy): visits + predictions run
   fetch(proxy() + "/hit?page=v2").then(r => r.json()).then(d => {
-    if (d && d.total != null) {
-      $("#visitNum").textContent = Number(d.total).toLocaleString();
+    if (d && (d.total != null || d.predictions != null)) {
+      $("#predNum").textContent = Number(d.predictions || 0).toLocaleString();
+      $("#visitNum").textContent = Number(d.total || 0).toLocaleString();
       $("#visitCount").style.visibility = "visible";
     }
   }).catch(() => {});

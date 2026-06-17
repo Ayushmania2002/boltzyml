@@ -17,11 +17,13 @@ Boltz can fetch them by URL) and proxies result downloads.
 | Method | Path | Purpose |
 |--------|------|---------|
 | `POST` | `/submit` | Forward a prediction. Body `{ input, idempotency_key?, model? }`, header `X-Boltz-Key`. |
+| `POST` | `/estimate` | Forward to Boltz `estimate-cost`. Body `{ input, model? }`, header `X-Boltz-Key`; returns the USD estimate. |
 | `GET`  | `/status?id=<id>` | Forward a status/retrieve call. |
-| `POST` | `/template` | Store a cleaned CIF (raw body), returns `{ url }`. |
+| `POST` | `/template` | Store a cleaned CIF (raw body) in a Durable Object, returns `{ url }`. |
 | `GET`  | `/t/<id>` | Serve a stored template — this is the URL Boltz fetches (public). |
+| `GET`  | `/hit?page=<id>` | Increment + return the shared visit counter (Durable Object). |
 | `GET`  | `/fetch?url=<u>` | Proxy a Boltz/S3 result file back with CORS. |
-| `GET`  | `/health` | `{ ok: true, templateStore: bool }`. |
+| `GET`  | `/health` | `{ ok, store, templateStore, counter }`. |
 
 ## Deploy (one time, ~3 minutes, free — no payment method needed)
 

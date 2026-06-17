@@ -248,10 +248,10 @@ any binary, ternary, or N-body mix of proteins, ligands (CCD or SMILES), DNA, an
 
 | Stage | Capability |
 | --- | --- |
-| **1 · Build** | Arbitrary entity sets (protein / ligand / DNA / RNA), per-chain IDs, binder selection, live residue/base counts, and full sampling control (`num_samples`, `recycling_steps` 1–10, `sampling_steps`, `step_scale`, MSA mode). **Ligands** can be given as a CCD code, a SMILES string, **or a structure file** (`.sdf` / `.mol` / `.mol2`) that BoltzYML converts to SMILES in-browser via self-hosted RDKit. |
-| **1 · Clean templates** | Drop a raw RCSB/ChimeraX `.cif`/`.pdb`. BoltzYML rewrites `_struct_asym` to remove phantom chains, strips waters/ligands, repairs modified residues (e.g. `OCY → CYS`), and deletes `_pdbx_poly_seq_scheme` / `_struct_conn` records — the exact fixes that otherwise make the Boltz template parser fail with `StopIteration` / `Invalid input schema`. Then map each template chain to a prediction chain. |
-| **2 · Submit** | Paste **your own Boltz API key** and click submit — no setup, no install. Your key lives only in your browser tab and is forwarded to Boltz through BoltzYML's open-source proxy, which stores nothing. |
-| **3 · Results** | Poll job status, read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json` + a branded `README.txt` with citations and a how-to-interpret guide) plus the best structure by ipTM. |
+| **1 · Build** | Arbitrary entity sets (protein / ligand / DNA / RNA), per-chain IDs, binder selection, live residue/base counts, and sampling control matched to the API (`num_samples` 1–10, `recycling_steps` 1–10, `sampling_steps` ≥50, `step_scale` 1.3–2.0). **Ligands** by CCD code, SMILES, or a structure file (`.sdf`/`.mol`/`.mol2`) converted to SMILES in-browser via self-hosted RDKit. **Per-protein MSA**: automatic, single-sequence, or upload your own `.a3m`/`.csv`. |
+| **1 · Clean templates** | Drop a raw RCSB/ChimeraX `.cif`/`.pdb`. BoltzYML rewrites `_struct_asym` to remove phantom chains, strips waters/ligands, repairs modified residues (e.g. `OCY → CYS`), deletes `_pdbx_poly_seq_scheme` / `_struct_conn` records, and rebuilds polymer metadata for raw PDB files — the exact fixes that otherwise make the Boltz template parser fail. Then map each template chain to a prediction chain (one template per chain; duplicates are dropped). |
+| **2 · Submit** | Name the job (optional), **estimate the exact cost** via Boltz's `estimate-cost` endpoint before you commit, then paste **your own Boltz API key** and submit. No setup, no install. Your key lives only in your browser tab and is forwarded to Boltz through BoltzYML's open-source proxy, which stores nothing. |
+| **3 · Results** | Jobs **poll themselves** with a spinner (no over-clicking). Read ipTM / pTM / pLDDT, and download a results `.zip` (every sample CIF + `metrics.json` + a branded `README.txt` with citations and a how-to-interpret guide) plus the best structure by ipTM. |
 
 ### Using BoltzYML v2.0 — just bring your Boltz API key
 
@@ -261,10 +261,12 @@ No installation, no proxy setup. The whole workflow is **drop files → paste ke
 2. Open the app: **<https://ayushmania2002.github.io/boltzyml/v2.html>**
 3. **Define your complex** — add entities (protein sequence, ligand, DNA, RNA), give each a single-letter chain ID, and mark a ligand as **binder** if you want affinity/pose scoring. Sequence fields show a live amino-acid / base count.
    - **Ligands** can be entered three ways: a **CCD code** (e.g. `A8S`), a **SMILES** string, or an uploaded **structure file** (`.sdf` / `.mol` / `.mol2`). File ligands are converted to SMILES **in your browser** (self-hosted RDKit, ~7 MB loaded on first use); the result is shown in an editable field so you can verify it before submitting.
+   - **MSA (per protein)**: the default is server-generated (recommended). You can also choose single-sequence, or **upload your own MSA** (`.a3m` or `.csv`) on any protein entity. The MSA field is protein-only, so in mixed complexes (protein + DNA/RNA/ligand) it simply applies to the protein chains.
 4. **(Optional) Drop a template** — a `.cif`/`.pdb` from RCSB, AlphaFold, ChimeraX, etc. BoltzYML auto-cleans it **in your browser** (and converts legacy PDB to mmCIF, emitting the polymer metadata Boltz needs); then map each template chain to a prediction chain. Boltz allows one template per chain, so duplicate mappings are dropped automatically.
 5. **Set sampling options** (or keep the defaults) and click **Rebuild** to preview the exact payload.
-6. **Paste your Boltz API key** and click **Submit prediction**.
-7. Under **Jobs & results**: **Poll** until `succeeded`, then **Download results** — you get a `.zip` of every sample structure + `metrics.json` + `README.txt`, plus the best structure by ipTM.
+6. **(Optional) Name the job** and click **Estimate cost** to get Boltz's exact USD estimate before committing.
+7. **Paste your Boltz API key** and click **Submit prediction**. Running jobs **poll themselves** with a spinner, so you do not need to keep clicking.
+8. Under **Jobs & results**, once `succeeded`, click **Download results** — a `.zip` of every sample structure + `metrics.json` + `README.txt`, plus the best structure by ipTM. Files use your job name when set.
 
 ### Getting a Boltz API key &amp; cost
 
@@ -274,10 +276,11 @@ The hosted Boltz-2 API is a paid service (currently in **beta**), run by Boltz �
 2. Boltz includes **$5 of free credit every month**; paid top-ups / subscriptions are available — check the **current rates on the Boltz site/docs** (pricing can change during beta).
 3. Paste the key into BoltzYML v2.0. It stays in your browser tab only (optionally remembered for the session) and is never sent anywhere except through the proxy to Boltz.
 
-**Rough cost per prediction** *(approximate — confirm current rates at the link above):* cost scales with
-**`num_samples` × complex size**. A typical job runs on the order of **a few cents up to ~$0.50**, so the
-**$5 monthly free credit comfortably covers dozens of small jobs**. Larger complexes and higher
-`num_samples` cost more.
+**Cost.** Pricing is **per sample** (Boltz bills `num_samples` units), starting around **$0.025–$0.05 per
+sample** and scaling with complex size, so a typical job is on the order of **a few cents up to ~$0.50**.
+Rather than guess, BoltzYML has an **Estimate cost** button that calls Boltz's official `estimate-cost`
+endpoint and shows the exact USD figure for your payload before you submit. Confirm current rates on the
+Boltz site, since pricing can change during beta.
 
 > ⚠️ The Boltz API is in **beta** — endpoints, pricing, and rate limits may change. Always check the [official docs](https://api.boltz.bio/docs/api/) for current details.
 

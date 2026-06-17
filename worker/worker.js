@@ -51,7 +51,7 @@ function randId(n = 20) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
 
@@ -78,6 +78,27 @@ export default {
             "X-Api-Key": key,
           },
           body: JSON.stringify(body),
+        });
+        const text = await upstream.text();
+        // count it as a real prediction only if Boltz accepted the submission
+        if (upstream.ok && env.COUNTER) {
+          ctx.waitUntil(env.COUNTER.get(env.COUNTER.idFromName("global")).fetch("https://do/?ev=pred"));
+        }
+        return new Response(text, {
+          status: upstream.status,
+          headers: { "Content-Type": "application/json", ...CORS },
+        });
+      }
+
+      // ── Estimate cost (same payload as /submit; returns a USD estimate) ──
+      if (path === "/estimate" && request.method === "POST") {
+        const key = getKey(request);
+        if (!key) return json({ error: "Missing X-Boltz-Key header." }, 401);
+        const payload = await request.json();
+        const upstream = await fetch(BOLTZ_BASE + PRED_PATH + "/estimate-cost", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json", "X-Api-Key": key },
+          body: JSON.stringify({ model: payload.model || "boltz-2.1", input: payload.input }),
         });
         const text = await upstream.text();
         return new Response(text, {
@@ -186,21 +207,30 @@ export default {
   },
 };
 
-// Durable Object: a single global visit counter. One instance ("global") holds
-// a per-page tally plus a project-wide total. Storage ops here don't count
-// against the KV write limit, so page views never starve template hosting.
+// Durable Object: a single global counter ("global"). Holds total page visits
+// (with a per-page tally) and total predictions submitted. Both are returned on
+// every call so the app can display them. Storage ops here don't count against
+// the KV write limit, so counting never starves template hosting.
+//   ?ev=pred    → increment the predictions counter (a real job was submitted)
+//   ?page=<id>  → increment visits (default)
 export class Counter {
   constructor(state) { this.state = state; }
   async fetch(request) {
     const url = new URL(request.url);
-    const page = (url.searchParams.get("page") || "all").replace(/[^a-z0-9_]/gi, "").slice(0, 16);
     const s = this.state.storage;
     let total = (await s.get("total")) || 0;
-    let pageCount = (await s.get("p:" + page)) || 0;
-    total += 1; pageCount += 1;
-    await s.put("total", total);
-    await s.put("p:" + page, pageCount);
-    return new Response(JSON.stringify({ page: pageCount, total }), {
+    let predictions = (await s.get("predictions")) || 0;
+    if (url.searchParams.get("ev") === "pred") {
+      predictions += 1;
+      await s.put("predictions", predictions);
+    } else {
+      const page = (url.searchParams.get("page") || "all").replace(/[^a-z0-9_]/gi, "").slice(0, 16);
+      let pageCount = (await s.get("p:" + page)) || 0;
+      total += 1; pageCount += 1;
+      await s.put("total", total);
+      await s.put("p:" + page, pageCount);
+    }
+    return new Response(JSON.stringify({ total, predictions }), {
       headers: { "Content-Type": "application/json", ...CORS },
     });
   }
