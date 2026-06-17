@@ -151,11 +151,12 @@
   @keyframes blz-spin { to { transform: rotate(360deg); } }
   .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border-strong);
     border-top-color: var(--accent); border-radius: 50%; animation: blz-spin .8s linear infinite; vertical-align: middle; }
-  .seqrow { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.5; margin: 2px 0; white-space: nowrap; }
-  .seqrow .chid { display: inline-block; min-width: 56px; color: var(--muted); font-weight: 600; user-select: none; }
-  .seqrow .res { display: inline-block; width: 11px; text-align: center; cursor: pointer; border-radius: 2px; }
-  .seqrow .res:hover { background: var(--accent-soft); }
-  .seqrow .res.sel { background: #ff1744; color: #fff; }
+  .seqblock { margin: 6px 0; }
+  .seqblock .chid { display: block; color: var(--muted); font-weight: 600; user-select: none; margin-bottom: 2px; cursor: pointer; font-size: 12px; }
+  .seqres { display: flex; flex-wrap: wrap; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.4; }
+  .seqres .res { flex: 0 0 auto; width: 11px; text-align: center; cursor: pointer; border-radius: 2px; user-select: none; }
+  .seqres .res:hover { background: var(--accent-soft); }
+  .seqres .res.sel { background: #ff1744; color: #fff; }
   .seq-hint { font-size: 11px; color: var(--muted); margin: 0 0 4px; }
 
   footer { max-width: 1100px; margin: 24px auto 0; padding: 22px 28px 48px; color: var(--muted);
@@ -1376,11 +1377,13 @@
     seqDiv.append(el("p", { class: "seq-hint" }, "Drag across residues to highlight them in 3D · hover the structure for residue info · click a chain label to clear."));
     for (const ch of Object.keys(chains).sort()) {
       const residues = [...chains[ch].entries()].sort((a, b) => a[0] - b[0]);
-      const row = el("div", { class: "seqrow" });
-      row.append(el("span", { class: "chid", onclick: () => { clearSel(); } }, "Chain " + ch));
+      const block = el("div", { class: "seqblock" });
+      block.append(el("span", { class: "chid", onclick: () => clearSel() }, "Chain " + ch + " · " + residues.length + " res"));
+      const resWrap = el("div", { class: "seqres" });
       for (const [resi, resn] of residues)
-        row.append(el("span", { class: "res", "data-key": ch + ":" + resi, title: resn + " " + resi + " · " + ch }, one(resn)));
-      seqDiv.append(row);
+        resWrap.append(el("span", { class: "res", "data-key": ch + ":" + resi, title: resn + " " + resi + " · " + ch }, one(resn)));
+      block.append(resWrap);
+      seqDiv.append(block);
     }
   }
   function markSel() { $("#viewerSeq").querySelectorAll(".res").forEach(sp => sp.classList.toggle("sel", _sel.has(sp.getAttribute("data-key")))); }
