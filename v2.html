@@ -193,6 +193,11 @@
   .demo-modal-body iframe { width: 100%; height: 100%; border: 0; }
   .demo-modal-close { position: absolute; top: -38px; right: 0; background: none; border: 0; color: #fff; font-size: 24px; cursor: pointer; line-height: 1; }
   @media (max-width: 620px) { .demo-widget { width: 240px; top: 70px; right: 12px; } }
+  .demo-fab { position: fixed; top: 78px; right: 20px; z-index: 999; width: 52px; height: 52px; border-radius: 50%;
+    border: 0; cursor: pointer; background: var(--accent); display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 16px rgba(37,99,235,.4); transition: transform .2s ease, box-shadow .2s ease; }
+  .demo-fab:hover { transform: scale(1.1); box-shadow: 0 10px 24px rgba(37,99,235,.6), 0 0 0 5px rgba(37,99,235,.18); }
+  @media (max-width: 620px) { .demo-fab { top: 70px; right: 12px; width: 48px; height: 48px; } }
 
   footer { max-width: 1100px; margin: 24px auto 0; padding: 22px 28px 48px; color: var(--muted);
     font-size: 12.5px; border-top: 1px solid var(--border); }
@@ -400,12 +405,15 @@
   <div class="demo-head">
     <span class="demo-title">▶ Watch the demo</span>
     <button id="demoExpand" title="Expand to large view" aria-label="Expand">⤢</button>
-    <button id="demoClose" title="Hide" aria-label="Hide">✕</button>
+    <button id="demoMin" title="Minimize" aria-label="Minimize"><svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
   </div>
-  <div id="demoBody" class="demo-body">
-    <button id="demoPlay" class="demo-play" aria-label="Play demo video"></button>
-  </div>
+  <div id="demoBody" class="demo-body"></div>
 </div>
+<button id="demoFab" class="demo-fab" style="display:none" title="Watch the demo" aria-label="Watch the demo">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+  </svg>
+</button>
 <div id="demoModal" class="demo-modal" style="display:none">
   <div class="demo-modal-inner">
     <button id="demoModalClose" class="demo-modal-close" aria-label="Close">✕</button>
@@ -1679,22 +1687,25 @@
   //  Paste the unlisted video's 11-char ID here to enable the corner player.
   const YT_ID = "qa566tQMQmE";
   (() => {
-    const widget = $("#demoWidget");
+    const widget = $("#demoWidget"), fab = $("#demoFab"), body = $("#demoBody");
     if (!widget || !YT_ID) return;                         // stays hidden until an ID is set
-    if (localStorage.getItem("boltzyml_demo_hidden")) return;
     const embed = () => '<iframe src="https://www.youtube-nocookie.com/embed/' + YT_ID + '?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>';
-    const body = $("#demoBody");
     body.style.backgroundImage = "url(https://img.youtube.com/vi/" + YT_ID + "/hqdefault.jpg)";
-    widget.style.display = "block";
-    const playInline = () => { body.innerHTML = embed(); };
-    $("#demoPlay").addEventListener("click", playInline);
-    body.addEventListener("click", e => { if (e.target !== $("#demoPlay")) playInline(); });
-    $("#demoClose").addEventListener("click", () => { widget.style.display = "none"; localStorage.setItem("boltzyml_demo_hidden", "1"); });
+    const showPoster = () => { body.innerHTML = '<button class="demo-play" aria-label="Play demo video"></button>'; };
+    showPoster();
+    body.addEventListener("click", () => { if (!body.querySelector("iframe")) body.innerHTML = embed(); });
+    const open = () => { fab.style.display = "none"; widget.style.display = "block"; localStorage.removeItem("boltzyml_demo_min"); };
+    const minimize = () => { widget.style.display = "none"; showPoster(); fab.style.display = "flex"; localStorage.setItem("boltzyml_demo_min", "1"); };
+    $("#demoMin").addEventListener("click", minimize);
+    fab.addEventListener("click", open);
     const closeModal = () => { $("#demoModal").style.display = "none"; $("#demoModalBody").innerHTML = ""; };
     $("#demoExpand").addEventListener("click", () => { $("#demoModalBody").innerHTML = embed(); $("#demoModal").style.display = "flex"; });
     $("#demoModalClose").addEventListener("click", closeModal);
     $("#demoModal").addEventListener("click", e => { if (e.target === $("#demoModal")) closeModal(); });
     document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+    // initial state: minimized to the camera icon if the user minimized before
+    if (localStorage.getItem("boltzyml_demo_min")) fab.style.display = "flex";
+    else widget.style.display = "block";
   })();
 })();
 </script>
