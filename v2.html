@@ -158,6 +158,21 @@
   .seqres .res:hover { background: var(--accent-soft); }
   .seqres .res.sel { background: #ff1744; color: #fff; }
   .seq-hint { font-size: 11px; color: var(--muted); margin: 0 0 4px; }
+  /* floating feedback button (FAB) */
+  @keyframes fab-pulse { 0%,100% { box-shadow: 0 6px 18px rgba(37,99,235,.40); } 50% { box-shadow: 0 6px 22px rgba(37,99,235,.60); } }
+  .fab { position: fixed; right: 24px; bottom: 24px; z-index: 1000; display: flex; align-items: center;
+    height: 58px; border-radius: 29px; background: var(--accent); color: #fff; text-decoration: none;
+    box-shadow: 0 6px 18px rgba(37,99,235,.40); animation: fab-pulse 2.8s ease-in-out infinite;
+    transition: transform .2s ease, box-shadow .2s ease; }
+  .fab .fab-label { max-width: 0; overflow: hidden; white-space: nowrap; font-size: 13.5px; font-weight: 600;
+    transition: max-width .28s ease, padding .28s ease; }
+  .fab .fab-ico { width: 58px; height: 58px; flex: 0 0 58px; display: flex; align-items: center; justify-content: center; }
+  .fab:hover { transform: translateY(-2px) scale(1.07); animation: none;
+    box-shadow: 0 12px 30px rgba(37,99,235,.60), 0 0 0 5px rgba(37,99,235,.18); }
+  .fab:hover .fab-label { max-width: 220px; padding-left: 18px; }
+  .fab:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+  @media (max-width: 560px) { .fab { right: 16px; bottom: 16px; height: 52px; border-radius: 26px; }
+    .fab .fab-ico { width: 52px; height: 52px; flex-basis: 52px; } }
 
   footer { max-width: 1100px; margin: 24px auto 0; padding: 22px 28px 48px; color: var(--muted);
     font-size: 12.5px; border-top: 1px solid var(--border); }
@@ -350,6 +365,16 @@
   </p>
 </footer>
 
+<!-- floating feedback button → opens a pre-filled GitHub issue -->
+<a id="feedbackFab" class="fab" href="https://github.com/Ayushmania2002/boltzyml/issues/new" target="_blank" rel="noopener" aria-label="Report a bug or send feedback" title="Report a bug or send feedback">
+  <span class="fab-label">Feedback / report a bug</span>
+  <span class="fab-ico" aria-hidden="true">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+    </svg>
+  </span>
+</a>
+
 <script>
 (() => {
   "use strict";
@@ -358,6 +383,8 @@
   const STANDARD_AA = new Set(["ALA","ARG","ASN","ASP","CYS","GLU","GLN","GLY","HIS","ILE",
     "LEU","LYS","MET","PHE","PRO","SER","THR","TRP","TYR","VAL"]);
   const WATER = new Set(["HOH","WAT","DOD"]);
+  // Standard nucleotides (DNA + RNA) — these are NOT modified residues.
+  const STANDARD_NUC = new Set(["DA","DC","DG","DT","DI","DU","A","C","G","U","I","N","DN","UNK"]);
   const AA3_TO_1 = {ALA:"A",ARG:"R",ASN:"N",ASP:"D",CYS:"C",GLU:"E",GLN:"Q",GLY:"G",HIS:"H",
     ILE:"I",LEU:"L",LYS:"K",MET:"M",PHE:"F",PRO:"P",SER:"S",THR:"T",TRP:"W",TYR:"Y",VAL:"V"};
   // Modified residue → standard parent (PDB CCD). Covers the common crystallographic mods
@@ -481,7 +508,7 @@
       if (grp === "ATOM") {
         atomChains.add(ch);
         if (qi != null) authOf.set(ch, p[qi]);
-        if (!STANDARD_AA.has(comp) && !WATER.has(comp)) nonStd.add(comp);
+        if (!STANDARD_AA.has(comp) && !STANDARD_NUC.has(comp) && !WATER.has(comp)) nonStd.add(comp);
         if (ai != null && unquote(p[ai]) === "CA") {
           if (!seqArr.has(ch)) seqArr.set(ch, []);
           const one = AA3_TO_1[comp] || (MOD_PARENT[comp] ? AA3_TO_1[MOD_PARENT[comp]] : "X");
@@ -512,7 +539,7 @@
         if (mi >= 0) {
           while (j < lines.length && !isTerminator(lines[j])) {
             const tok = lines[j].trim().split(/\s+/);
-            if (tok.length > mi) { const c = tok[mi]; if (!STANDARD_AA.has(c) && !WATER.has(c)) nonStd.add(c); }
+            if (tok.length > mi) { const c = tok[mi]; if (!STANDARD_AA.has(c) && !STANDARD_NUC.has(c) && !WATER.has(c)) nonStd.add(c); }
             j++;
           }
         }
@@ -627,7 +654,17 @@
   }
 
   // ───────────────────────── model: entities ─────────────────────────
-  let entSeq = 0;
+  let entSeq = 0, linkSeq = 0;
+  // when one strand of a linked DNA/RNA pair is edited, flag the partner as stale
+  function syncPartner(edited) {
+    const p = entities.find(x => x !== edited && x.linkId && x.linkId === edited.linkId);
+    if (!p) return;
+    const inSync = p.value === revComp(edited.value, edited.kind === "rna");
+    p._stale = !inSync; edited._stale = false;
+    if (p._staleBar) p._staleBar.style.display = inSync ? "none" : "flex";
+    if (p._rowEl) p._rowEl.style.borderColor = inSync ? "" : "var(--err)";
+    if (edited._rowEl) edited._rowEl.style.borderColor = "";
+  }
   const entities = [];
   const DEFAULT_CHAINS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   function nextChain() {
@@ -695,7 +732,7 @@
       const countText = v => v ? v.length + " " + unit : "";
       const count = el("span", { class: "seq-count", style: "display:block;margin-top:4px;font-size:11.5px;color:var(--muted);" }, countText(e.value));
       const input = isSeq
-        ? el("textarea", { class: "seq", placeholder: ph, oninput: ev => { e.value = ev.target.value.replace(/\s+/g, ""); count.textContent = countText(e.value); rebuildDebounced(); } }, e.value)
+        ? el("textarea", { class: "seq", placeholder: ph, oninput: ev => { e.value = ev.target.value.replace(/\s+/g, ""); count.textContent = countText(e.value); if (e.linkId) syncPartner(e); rebuildDebounced(); } }, e.value)
         : el("input", { type: "text", placeholder: ph, value: e.value, oninput: ev => { e.value = ev.target.value.trim(); rebuildDebounced(); } });
 
       // per-protein custom MSA upload (.a3m/.csv → base64, sent inline to Boltz)
@@ -717,8 +754,45 @@
           el("span", { style: "font-size:11.5px;color:var(--ink-soft)" }, "Custom MSA (optional, .a3m/.csv):"),
           msaFile, clearBtn, msaStat]);
       }
-      root.append(el("div", { class: "item" }, [head, input, isSeq ? count : null, msaCtrl]));
+
+      // DNA/RNA: add the reverse-complement strand, and keep the pair in sync.
+      let compCtrl = null, staleBar = null;
+      e._staleBar = null;
+      if (e.kind === "dna" || e.kind === "rna") {
+        const partner = e.linkId ? entities.find(x => x !== e && x.linkId === e.linkId) : null;
+        if (!partner) {
+          e._stale = false;
+          compCtrl = el("div", { style: "margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap" }, [
+            el("button", { class: "ghost tiny", onclick: () => {
+              if (!e.value) return setBuildStatus("warn", "Enter the " + e.kind.toUpperCase() + " sequence first.");
+              const linkId = ++linkSeq; e.linkId = linkId;
+              entities.push({ uid: ++entSeq, kind: e.kind, chain: nextChain(), value: revComp(e.value, e.kind === "rna"), binder: false, _name: "", linkId });
+              renderEntities(); rebuild();
+            } }, "+ complementary strand"),
+            el("span", { style: "font-size:11px;color:var(--muted)" }, "adds the reverse-complement (antiparallel 5′→3′) strand as a linked chain")
+          ]);
+        } else {
+          staleBar = el("div", { style: "display:" + (e._stale ? "flex" : "none") + ";align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:var(--err-soft);border:1px solid #f1c4c4;border-radius:8px;" }, [
+            el("span", { style: "font-size:11.5px;color:var(--err)" }, "⚠ Partner strand changed — this strand may be out of sync."),
+            el("button", { class: "ghost tiny", onclick: () => {
+              const pp = entities.find(x => x !== e && x.linkId === e.linkId);
+              if (pp) e.value = revComp(pp.value, e.kind === "rna");
+              e._stale = false; renderEntities(); rebuild();
+            } }, "Update")
+          ]);
+          e._staleBar = staleBar;
+        }
+      }
+      const row = el("div", { class: "item" }, [head, input, isSeq ? count : null, msaCtrl, compCtrl, staleBar]);
+      e._rowEl = row;
+      if (e._stale) row.style.borderColor = "var(--err)";
+      root.append(row);
     }
+  }
+  // reverse complement of a nucleotide sequence (5'→3' antiparallel strand)
+  function revComp(seq, rna) {
+    const C = rna ? { A: "U", U: "A", T: "A", G: "C", C: "G", N: "N" } : { A: "T", T: "A", U: "A", G: "C", C: "G", N: "N" };
+    return (seq || "").toUpperCase().replace(/[^A-Z]/g, "").split("").reverse().map(b => C[b] || "N").join("");
   }
 
   // ───────────────────────── model: templates ─────────────────────────
@@ -810,17 +884,23 @@
           }
           card.append(wrap);
         }
-        // chain → prediction mapping
-        const mapWrap = el("div", { style: "margin-top:12px" }, [el("span", { style: "font-size:12px;color:var(--ink-soft);font-weight:500;display:block;margin-bottom:6px" }, "Map template chain → prediction chain (entity)")]);
+        // chain → prediction mapping. Boltz only templates PROTEIN chains, so we
+        // only offer protein template chains, mapped to protein prediction chains.
+        const proteinChains = entities.filter(e => e.kind === "protein");
+        const mapWrap = el("div", { style: "margin-top:12px" }, [el("span", { style: "font-size:12px;color:var(--ink-soft);font-weight:500;display:block;margin-bottom:6px" }, "Map template chain → prediction chain (protein only)")]);
+        let proteinTplChains = 0;
         for (const m of tpl.mappings) {
+          if (!a.chainSeq.get(m.template_id)) continue;   // skip non-protein template chains (DNA/RNA/ligand)
+          proteinTplChains++;
           const sel = el("select", {}, [el("option", { value: "" }, "— choose entity chain —")]);
-          for (const e of entities) sel.append(el("option", { value: e.chain, ...(m.chain_id === e.chain ? { selected: "selected" } : {}) }, `${e.chain} · ${KIND_LABEL[e.kind]}`));
+          for (const e of proteinChains) sel.append(el("option", { value: e.chain, ...(m.chain_id === e.chain ? { selected: "selected" } : {}) }, `${e.chain} · ${KIND_LABEL[e.kind]}`));
           sel.addEventListener("change", ev => { m.chain_id = ev.target.value; rebuild(); });
           mapWrap.append(el("div", { class: "map-row" }, [
             el("div", {}, [el("code", { class: "inline" }, "template " + m.template_id)]),
             el("span", { class: "arrow" }, "→"), sel, el("span", {})
           ]));
         }
+        if (!proteinTplChains) mapWrap.append(el("p", { class: "hint-p" }, "No protein chains in this template to map (Boltz only templates protein chains)."));
         card.append(mapWrap);
       }
       root.append(card);
@@ -851,11 +931,15 @@
     const binder = entities.find(e => e.binder && e.kind.startsWith("ligand_"));
     if (binder) input.binding = { type: "ligand_protein_binding", binder_chain_id: binder.chain };
 
-    const tmpl = [], usedChains = new Set(), dupChains = [];
+    const proteinSet = new Set(entities.filter(e => e.kind === "protein").map(e => e.chain));
+    const tmpl = [], usedChains = new Set(), dupChains = [], nonProtChains = [];
     for (const tpl of templates) {
       if (!tpl.analysis) continue;
       for (const m of tpl.mappings) {
         if (!m.chain_id) continue;
+        // Boltz only templates PROTEIN chains. Drop mappings to non-protein
+        // (DNA/RNA/ligand) prediction chains, and skip non-protein template chains.
+        if (!proteinSet.has(m.chain_id) || !tpl.analysis.chainSeq.get(m.template_id)) { nonProtChains.push(m.chain_id); continue; }
         // Boltz allows only ONE template per prediction chain. Keep the first
         // mapping for a chain; skip later duplicates (and report them).
         if (usedChains.has(m.chain_id)) { dupChains.push(m.chain_id); continue; }
@@ -872,7 +956,7 @@
       sampling_steps: clampInt($("#samplingSteps").value, 50, 1000, 200),
       step_scale: Math.min(2, Math.max(1.3, parseFloat($("#stepScale").value) || 1.638))
     };
-    return { input, templatesUsed: tmpl, dupChains };
+    return { input, templatesUsed: tmpl, dupChains, nonProtChains };
   }
   function clampInt(v, lo, hi, dflt) { const n = parseInt(v, 10); return Number.isNaN(n) ? dflt : Math.min(hi, Math.max(lo, n)); }
 
@@ -934,12 +1018,14 @@
   let fmt = "yaml", lastInput = null;
   function rebuild() {
     try {
-      const { input, dupChains } = buildInput();
+      const { input, dupChains, nonProtChains } = buildInput();
       lastInput = input;
       const shown = maskForPreview(input);
       $("#payloadOut").value = fmt === "yaml" ? toYaml(shown) : JSON.stringify(shown, null, 2);
       const dupNote = dupChains.length ? " ⚠ dropped duplicate template mapping(s) for chain " + [...new Set(dupChains)].join(", ") + " (Boltz allows one template per chain)." : "";
-      setBuildStatus(dupChains.length ? "warn" : "ok", "Payload ready · " + input.entities.length + " entities" + (input.templates ? ", " + input.templates.length + " template mapping(s)" : "") + "." + dupNote);
+      const npNote = nonProtChains.length ? " ⚠ dropped template mapping(s) for non-protein chain " + [...new Set(nonProtChains)].join(", ") + " (Boltz only templates protein chains)." : "";
+      const warn = dupChains.length || nonProtChains.length;
+      setBuildStatus(warn ? "warn" : "ok", "Payload ready · " + input.entities.length + " entities" + (input.templates ? ", " + input.templates.length + " template mapping(s)" : "") + "." + dupNote + npNote);
       $("#submitBtn").disabled = false;
     } catch (e) {
       lastInput = null;
@@ -1527,6 +1613,29 @@
       $("#visitCount").style.visibility = "visible";
     }
   }).catch(() => {});
+
+  // floating feedback button → pre-filled GitHub issue
+  (() => {
+    const fab = $("#feedbackFab"); if (!fab) return;
+    const title = "Feedback / bug report";
+    const body = [
+      "Thanks for trying BoltzYML v2.0! Please describe your feedback or the bug below.",
+      "",
+      "**Type:** bug / feature request / general feedback",
+      "",
+      "**What happened, or what would you like:**",
+      "",
+      "",
+      "**Steps to reproduce (for bugs):**",
+      "",
+      "",
+      "**Browser & OS:** " + navigator.userAgent,
+      "",
+      "---",
+      "_Reported from the BoltzYML v2.0 web app._"
+    ].join("\n");
+    fab.href = "https://github.com/Ayushmania2002/boltzyml/issues/new?title=" + encodeURIComponent(title) + "&body=" + encodeURIComponent(body);
+  })();
 })();
 </script>
 </body>
