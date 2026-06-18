@@ -173,6 +173,26 @@
   .fab:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
   @media (max-width: 560px) { .fab { right: 16px; bottom: 16px; height: 52px; border-radius: 26px; }
     .fab .fab-ico { width: 52px; height: 52px; flex-basis: 52px; } }
+  /* corner demo video (YouTube facade, lazy) */
+  .demo-widget { position: fixed; top: 78px; right: 20px; z-index: 999; width: 300px; background: #000;
+    border-radius: 12px; overflow: hidden; box-shadow: 0 8px 26px rgba(0,0,0,.28); border: 1px solid var(--border-strong); }
+  .demo-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 10px; background: var(--panel-2); border-bottom: 1px solid var(--border); }
+  .demo-head .demo-title { font-size: 12px; font-weight: 600; color: var(--ink); flex: 1; }
+  .demo-head button { background: none; border: 0; cursor: pointer; font-size: 13px; color: var(--muted); padding: 2px 7px; border-radius: 6px; line-height: 1; }
+  .demo-head button:hover { background: var(--border); color: var(--ink); }
+  .demo-body { position: relative; aspect-ratio: 16/9; background: #000 center/cover no-repeat; cursor: pointer; }
+  .demo-body iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .demo-play { position: absolute; inset: 0; margin: auto; width: 56px; height: 56px; border-radius: 50%; border: 0;
+    background: rgba(226,35,26,.95); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,.4); transition: transform .15s ease; }
+  .demo-play:hover { transform: scale(1.1); }
+  .demo-play::after { content: ""; border-style: solid; border-width: 10px 0 10px 17px; border-color: transparent transparent transparent #fff; margin-left: 4px; }
+  .demo-modal { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .demo-modal-inner { width: min(980px, 92vw); position: relative; }
+  .demo-modal-body { aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
+  .demo-modal-body iframe { width: 100%; height: 100%; border: 0; }
+  .demo-modal-close { position: absolute; top: -38px; right: 0; background: none; border: 0; color: #fff; font-size: 24px; cursor: pointer; line-height: 1; }
+  @media (max-width: 620px) { .demo-widget { width: 240px; top: 70px; right: 12px; } }
 
   footer { max-width: 1100px; margin: 24px auto 0; padding: 22px 28px 48px; color: var(--muted);
     font-size: 12.5px; border-top: 1px solid var(--border); }
@@ -374,6 +394,24 @@
     </svg>
   </span>
 </a>
+
+<!-- corner demo video (hidden until a YouTube ID is set in the script) -->
+<div id="demoWidget" class="demo-widget" style="display:none">
+  <div class="demo-head">
+    <span class="demo-title">▶ Watch the demo</span>
+    <button id="demoExpand" title="Expand to large view" aria-label="Expand">⤢</button>
+    <button id="demoClose" title="Hide" aria-label="Hide">✕</button>
+  </div>
+  <div id="demoBody" class="demo-body">
+    <button id="demoPlay" class="demo-play" aria-label="Play demo video"></button>
+  </div>
+</div>
+<div id="demoModal" class="demo-modal" style="display:none">
+  <div class="demo-modal-inner">
+    <button id="demoModalClose" class="demo-modal-close" aria-label="Close">✕</button>
+    <div id="demoModalBody" class="demo-modal-body"></div>
+  </div>
+</div>
 
 <script>
 (() => {
@@ -1635,6 +1673,28 @@
       "_Reported from the BoltzYML v2.0 web app._"
     ].join("\n");
     fab.href = "https://github.com/Ayushmania2002/boltzyml/issues/new?title=" + encodeURIComponent(title) + "&body=" + encodeURIComponent(body);
+  })();
+
+  // ── corner demo video (YouTube, lazy facade) ──────────────────────────────
+  //  Paste the unlisted video's 11-char ID here to enable the corner player.
+  const YT_ID = "qa566tQMQmE";
+  (() => {
+    const widget = $("#demoWidget");
+    if (!widget || !YT_ID) return;                         // stays hidden until an ID is set
+    if (localStorage.getItem("boltzyml_demo_hidden")) return;
+    const embed = () => '<iframe src="https://www.youtube-nocookie.com/embed/' + YT_ID + '?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen" allowfullscreen></iframe>';
+    const body = $("#demoBody");
+    body.style.backgroundImage = "url(https://img.youtube.com/vi/" + YT_ID + "/hqdefault.jpg)";
+    widget.style.display = "block";
+    const playInline = () => { body.innerHTML = embed(); };
+    $("#demoPlay").addEventListener("click", playInline);
+    body.addEventListener("click", e => { if (e.target !== $("#demoPlay")) playInline(); });
+    $("#demoClose").addEventListener("click", () => { widget.style.display = "none"; localStorage.setItem("boltzyml_demo_hidden", "1"); });
+    const closeModal = () => { $("#demoModal").style.display = "none"; $("#demoModalBody").innerHTML = ""; };
+    $("#demoExpand").addEventListener("click", () => { $("#demoModalBody").innerHTML = embed(); $("#demoModal").style.display = "flex"; });
+    $("#demoModalClose").addEventListener("click", closeModal);
+    $("#demoModal").addEventListener("click", e => { if (e.target === $("#demoModal")) closeModal(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
   })();
 })();
 </script>
