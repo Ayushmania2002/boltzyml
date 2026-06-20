@@ -270,19 +270,19 @@ No installation, no proxy setup. The whole workflow is **drop files → paste ke
 
 ### Getting a Boltz API key &amp; cost
 
-The hosted Boltz-2 API is a paid service (currently in **beta**), run by Boltz — separate from BoltzYML.
+The hosted Boltz-2 API is a paid service, run by Boltz — separate from BoltzYML.
 
 1. Go to the **[Boltz API docs](https://api.boltz.bio/docs/api/)**, create an account, and generate an API key.
-2. Boltz includes **$5 of free credit every month**; paid top-ups / subscriptions are available — check the **current rates on the Boltz site/docs** (pricing can change during beta).
+2. Boltz includes **$5 of free credit every month**; paid top-ups / subscriptions are available — check the **current rates on the Boltz site/docs** .
 3. Paste the key into BoltzYML v2.0. It stays in your browser tab only (optionally remembered for the session) and is never sent anywhere except through the proxy to Boltz.
 
 **Cost.** Pricing is **per sample** (Boltz bills `num_samples` units), starting around **$0.025–$0.05 per
 sample** and scaling with complex size, so a typical job is on the order of **a few cents up to ~$0.50**.
 Rather than guess, BoltzYML has an **Estimate cost** button that calls Boltz's official `estimate-cost`
 endpoint and shows the exact USD figure for your payload before you submit. Confirm current rates on the
-Boltz site, since pricing can change during beta.
+Boltz site, since pricing can change.
 
-> ⚠️ The Boltz API is in **beta** — endpoints, pricing, and rate limits may change. Always check the [official docs](https://api.boltz.bio/docs/api/) for current details.
+> Endpoints, pricing, and rate limits may change. Always check the [official docs](https://api.boltz.bio/docs/api/) for current details.
 
 ### How your inputs are processed — and what is (not) stored
 
@@ -362,7 +362,7 @@ The proxy is **open-source** ([`worker/worker.js`](worker/worker.js)) so every o
 independently verifiable. Found a vulnerability? Please open a
 [security issue](https://github.com/Ayushmania2002/boltzyml/issues).
 
-### Boltz API (beta) — SDKs for advanced / programmatic use
+### Boltz API — SDKs for advanced / programmatic use
 
 You don't need these to use BoltzYML (the web tool handles everything), but the Boltz API ships official
 client libraries if you want to script submissions directly:
